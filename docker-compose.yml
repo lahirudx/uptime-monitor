@@ -1,0 +1,70 @@
+services:
+  mongodb:
+    image: mongo:8
+    container_name: uptime-monitor-db-dev
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data_dev:/data/db
+    environment:
+      MONGO_INITDB_DATABASE: uptime-monitor
+
+  app:
+    image: node:20-alpine
+    container_name: uptime-monitor-app-dev
+    restart: unless-stopped
+    working_dir: /app
+    ports:
+      - "3200:3200"
+    depends_on:
+      - mongodb
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/.next
+    environment:
+      - NODE_ENV=development
+      - MONGODB_URI=${MONGODB_URI:-mongodb://mongodb:27017/uptime-monitor}
+      - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3200}
+      - PORT=3200
+      - NEXTAUTH_URL=${NEXTAUTH_URL:-http://localhost:3200}
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
+      - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD}
+      - EMAIL_HOST=${EMAIL_HOST}
+      - EMAIL_PORT=${EMAIL_PORT}
+      - EMAIL_USER=${EMAIL_USER}
+      - EMAIL_PASSWORD=${EMAIL_PASSWORD}
+      - EMAIL_FROM=${EMAIL_FROM}
+      - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID}
+      - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN}
+      - TWILIO_PHONE_NUMBER=${TWILIO_PHONE_NUMBER}
+    command: sh -c "npm install && npm run dev"
+
+  monitor:
+    image: node:20-alpine
+    container_name: uptime-monitor-service-dev
+    restart: unless-stopped
+    working_dir: /app
+    depends_on:
+      - mongodb
+      - app
+    volumes:
+      - .:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+      - MONGODB_URI=${MONGODB_URI:-mongodb://mongodb:27017/uptime-monitor}
+      - EMAIL_HOST=${EMAIL_HOST}
+      - EMAIL_PORT=${EMAIL_PORT}
+      - EMAIL_USER=${EMAIL_USER}
+      - EMAIL_PASSWORD=${EMAIL_PASSWORD}
+      - EMAIL_FROM=${EMAIL_FROM}
+      - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID}
+      - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN}
+      - TWILIO_PHONE_NUMBER=${TWILIO_PHONE_NUMBER}
+    command: sh -c "npm install && npm run monitor"
+
+volumes:
+  mongodb_data_dev:
