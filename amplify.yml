@@ -4,6 +4,23 @@ frontend:
     preBuild:
       commands:
         - npm ci
+        # Create .env.production from Amplify environment variables
+        - echo "NEXTAUTH_SECRET=$NEXTAUTH_SECRET" >> .env.production
+        - echo "NEXTAUTH_URL=$NEXTAUTH_URL" >> .env.production
+        - echo "MONGODB_URI=$MONGODB_URI" >> .env.production
+        - echo "ADMIN_USERNAME=$ADMIN_USERNAME" >> .env.production
+        - echo "ADMIN_PASSWORD=$ADMIN_PASSWORD" >> .env.production
+        - echo "EMAIL_HOST=$EMAIL_HOST" >> .env.production
+        - echo "EMAIL_PORT=$EMAIL_PORT" >> .env.production
+        - echo "EMAIL_USER=$EMAIL_USER" >> .env.production
+        - echo "EMAIL_PASSWORD=$EMAIL_PASSWORD" >> .env.production
+        - echo "EMAIL_FROM=$EMAIL_FROM" >> .env.production
+        - echo "NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL" >> .env.production
+        - echo "TWILIO_ACCOUNT_SID=$TWILIO_ACCOUNT_SID" >> .env.production
+        - echo "TWILIO_AUTH_TOKEN=$TWILIO_AUTH_TOKEN" >> .env.production
+        - echo "TWILIO_PHONE_NUMBER=$TWILIO_PHONE_NUMBER" >> .env.production
+        - echo "CRON_SECRET=$CRON_SECRET" >> .env.production
+        - cat .env.production
     build:
       commands:
         - npm run build
