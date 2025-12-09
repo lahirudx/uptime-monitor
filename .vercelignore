@@ -1,0 +1,16 @@
+# Don't upload these to Vercel
+node_modules
+.env
+.env.local
+.git
+.github
+*.log
+.DS_Store
+
+# Docker files (not needed for Vercel)
+Dockerfile
+docker-compose*.yml
+.dockerignore
+
+# Development files
+scripts/monitor.js

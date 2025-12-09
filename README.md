@@ -443,19 +443,94 @@ pm2 startup
 pm2 save
 ```
 
-### Vercel / Serverless (Not Recommended)
+### Vercel with Vercel Cron ⚡ (Serverless - Recommended for Low Traffic)
 
-While you can deploy the Next.js app to Vercel, **this is not recommended** because:
-- ❌ Vercel functions have time limits (won't work for background monitoring)
-- ❌ Need to run monitoring service separately on a VPS
-- ❌ More complex setup with multiple deployment targets
+Deploy to Vercel with built-in cron jobs for automated monitoring. Perfect for **low to medium traffic** sites.
 
-**If you must use Vercel:**
-1. Deploy the Next.js app to Vercel
-2. Deploy the monitoring service (`scripts/monitor.js`) to a VPS
-3. Use external MongoDB (Atlas)
+**Prerequisites:**
+- Vercel account (free tier available)
+- MongoDB Atlas account (free tier available)
 
-**Better alternative:** Use Docker Compose on any VPS for a complete, unified deployment.
+**Deployment Steps:**
+
+**1. Prepare your repository:**
+```bash
+# Make sure vercel.json exists (already included in the repo)
+# It configures cron to run every minute
+```
+
+**2. Set up MongoDB Atlas:**
+- Sign up at https://www.mongodb.com/cloud/atlas/register
+- Create a free cluster (512 MB shared)
+- Get your connection string (e.g., `mongodb+srv://user:pass@cluster.mongodb.net/uptime-monitor`)
+
+**3. Deploy to Vercel:**
+
+**Option A: Using Vercel CLI (Recommended)**
+```bash
+# Install Vercel CLI
+npm i -g vercel
+
+# Login to Vercel
+vercel login
+
+# Deploy
+vercel
+
+# Set environment variables
+vercel env add MONGODB_URI
+vercel env add NEXTAUTH_SECRET
+vercel env add CRON_SECRET
+vercel env add ADMIN_USERNAME
+vercel env add ADMIN_PASSWORD
+# Add other env vars as needed (EMAIL_*, TWILIO_*)
+
+# Deploy to production
+vercel --prod
+```
+
+**Option B: Using Vercel Dashboard**
+1. Go to https://vercel.com/new
+2. Import your GitHub repository
+3. Configure environment variables in the Vercel dashboard:
+   - `MONGODB_URI` - Your MongoDB Atlas connection string
+   - `NEXTAUTH_URL` - Your Vercel domain (e.g., `https://your-app.vercel.app`)
+   - `NEXTAUTH_SECRET` - Generate with `openssl rand -base64 32`
+   - `CRON_SECRET` - Generate with `openssl rand -base64 32`
+   - `ADMIN_USERNAME` - Your admin username
+   - `ADMIN_PASSWORD` - Your admin password
+   - Add email and Twilio variables as needed
+4. Click "Deploy"
+
+**4. Verify Cron is Running:**
+
+After deployment, check:
+- Go to your Vercel project → Settings → Cron Jobs
+- You should see `/api/cron/monitor` scheduled to run every minute
+- Check the "Logs" tab to see cron executions
+
+**Features:**
+- ✅ **Zero infrastructure** - fully serverless
+- ✅ **Auto-scaling** - handles traffic spikes
+- ✅ **Free tier** - generous free limits
+- ✅ **Global CDN** - fast worldwide
+- ✅ **Built-in cron** - no external services needed
+
+**Limitations:**
+- ⚠️ **1-minute minimum** check interval (can't check every 30 seconds)
+- ⚠️ **60-second timeout** on Pro plan (10s on Hobby) - might limit very large monitor counts
+- ⚠️ **Cold starts** - first request after idle may be slower
+
+**Manual Trigger (for testing):**
+```bash
+curl -X POST https://your-app.vercel.app/api/cron/monitor \
+  -H "Authorization: Bearer YOUR_CRON_SECRET"
+```
+
+**Cost Estimate:**
+- Vercel: Free for hobby projects (commercial use requires Pro: $20/month)
+- MongoDB Atlas: Free tier (512 MB) sufficient for most use cases
+- **Total: $0-20/month**
 
 ## CI/CD with GitHub Actions
 
