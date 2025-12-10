@@ -3,6 +3,7 @@ import { APIGatewayProxyEvent, APIGatewayProxyResult, ScheduledEvent } from 'aws
 /**
  * Lambda handler for scheduled cron job
  * Triggered by EventBridge (CloudWatch Events) every 1 minute
+ * Calls the Amplify API endpoint to trigger monitoring
  */
 export async function monitorCron(
   event: ScheduledEvent
@@ -10,18 +11,37 @@ export async function monitorCron(
   console.log('Cron event triggered:', JSON.stringify(event, null, 2))
 
   try {
-    // Import the monitor function
-    const { runMonitorChecks } = await import('../lib/monitor')
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL
+    const cronSecret = process.env.CRON_SECRET
 
-    console.log('Starting monitor checks from AWS Lambda cron...')
-    const result = await runMonitorChecks()
+    if (!appUrl) {
+      throw new Error('NEXT_PUBLIC_APP_URL environment variable is required')
+    }
+
+    const apiUrl = `${appUrl}/api/cron/monitor`
+    console.log('Calling API:', apiUrl)
+
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    }
+
+    if (cronSecret) {
+      headers['Authorization'] = `Bearer ${cronSecret}`
+    }
+
+    const response = await fetch(apiUrl, {
+      method: 'GET',
+      headers,
+    })
+
+    const result = await response.json()
 
     console.log('Monitor checks completed:', result)
 
     return {
       statusCode: 200,
       body: JSON.stringify({
-        message: 'Monitor checks completed',
+        message: 'Monitor checks completed via Amplify API',
         ...result,
         timestamp: new Date().toISOString(),
       }),
@@ -42,6 +62,7 @@ export async function monitorCron(
 /**
  * Lambda handler for manual HTTP trigger
  * Can be called via API Gateway for manual checks
+ * This also uses the API approach (not direct imports) to keep bundle small
  */
 export async function manualCheck(
   event: APIGatewayProxyEvent
@@ -49,8 +70,14 @@ export async function manualCheck(
   console.log('Manual trigger received:', JSON.stringify(event, null, 2))
 
   try {
-    // Verify authorization if CRON_SECRET is set
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL
     const cronSecret = process.env.CRON_SECRET
+
+    if (!appUrl) {
+      throw new Error('NEXT_PUBLIC_APP_URL environment variable is required')
+    }
+
+    // Verify authorization if CRON_SECRET is set
     const authHeader = event.headers?.authorization || event.headers?.Authorization
 
     if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
@@ -62,17 +89,31 @@ export async function manualCheck(
       }
     }
 
-    // Import the monitor function
-    const { runMonitorChecks } = await import('../lib/monitor')
+    const apiUrl = `${appUrl}/api/cron/monitor`
+    console.log('Calling API:', apiUrl)
 
-    console.log('Starting manual monitor checks...')
-    const result = await runMonitorChecks()
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    }
+
+    if (cronSecret) {
+      headers['Authorization'] = `Bearer ${cronSecret}`
+    }
+
+    const response = await fetch(apiUrl, {
+      method: 'GET',
+      headers,
+    })
+
+    const result = await response.json()
+
+    console.log('Monitor checks completed:', result)
 
     return {
       statusCode: 200,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        message: 'Monitor checks completed',
+        message: 'Monitor checks completed via API',
         ...result,
         timestamp: new Date().toISOString(),
       }),

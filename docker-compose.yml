@@ -46,28 +46,19 @@ services:
     command: sh -c "npm install && npm run dev"
 
   monitor:
-    image: node:20-alpine
+    image: curlimages/curl:8.5.0
     container_name: uptime-monitor-service-dev
     restart: unless-stopped
-    working_dir: /app
     depends_on:
       - mongodb
       - app
     volumes:
-      - .:/app
-      - /app/node_modules
+      - ./scripts/cron-monitor.sh:/app/cron-monitor.sh
     environment:
-      - NODE_ENV=development
-      - MONGODB_URI=${MONGODB_URI:-mongodb://mongodb:27017/uptime-monitor}
-      - EMAIL_HOST=${EMAIL_HOST}
-      - EMAIL_PORT=${EMAIL_PORT}
-      - EMAIL_USER=${EMAIL_USER}
-      - EMAIL_PASSWORD=${EMAIL_PASSWORD}
-      - EMAIL_FROM=${EMAIL_FROM}
-      - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID}
-      - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN}
-      - TWILIO_PHONE_NUMBER=${TWILIO_PHONE_NUMBER}
-    command: sh -c "npm install && npm run monitor"
+      - API_URL=http://app:3200/api/cron/monitor
+      - CRON_SECRET=${CRON_SECRET}
+    mem_limit: 32m
+    entrypoint: ["/bin/sh", "/app/cron-monitor.sh"]
 
 volumes:
   mongodb_data_dev:

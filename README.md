@@ -11,13 +11,45 @@ An open-source uptime monitoring system built with Next.js, MongoDB, and TypeScr
 ## Features
 
 - **HTTP/HTTPS Monitoring** - Monitor any HTTP or HTTPS endpoint with customizable check intervals
-- **Real-time Alerts** - Get notified via email or webhooks when your services go down
+- **Real-time Alerts** - Get notified via email, webhooks, or phone calls when your services go down
 - **Public Status Pages** - Create beautiful, branded status pages for your services
 - **Historical Analytics** - Track uptime percentages and response times over 24h, 7d, and 30d periods
-- **Response Time Tracking** - Visualize response times with interactive charts
+- **Response Time Tracking** - Visualize response times with interactive charts (red dots for failures)
 - **Incident Reports** - Automatic incident detection and tracking
+- **Contact Lists** - Organize alert recipients into reusable contact lists
 - **Self-hosted** - Full control over your monitoring data
 - **Open Source** - MIT licensed, contribute and customize freely
+
+## How Monitoring Works
+
+The monitoring system uses a **unified API-based architecture** for maximum flexibility:
+
+**Core API Endpoint:** `/api/cron/monitor`
+- Fetches all active monitors from MongoDB
+- Checks each endpoint sequentially
+- Saves check results with response time and status
+- Sends alerts (email/webhook/phone) when status changes from up → down
+
+**Cron Triggers** (choose based on your deployment):
+
+| Deployment | Trigger Method | How it Works |
+|-----------|----------------|--------------|
+| **Docker (Dev)** | `cron-monitor.sh` | Shell script calls API every minute via curl |
+| **AWS Lambda** | EventBridge | Lambda function calls API every minute |
+| **Vercel** | Vercel Cron | Built-in cron calls API every minute |
+| **Manual** | System Cron | Your own cron job calls API endpoint |
+
+**Benefits of API-based approach:**
+- ✅ Single source of truth - all monitoring logic in Next.js app
+- ✅ Easy to test - just call the API endpoint
+- ✅ Flexible deployment - works with any cron service
+- ✅ No code duplication - same logic everywhere
+- ✅ Simple debugging - check API logs, not scattered cron logs
+
+**Visual Feedback:**
+- Response time charts show green dots for successful checks
+- Red dots indicate failures, making issues easy to spot
+- Hover over dots to see exact response time and status
 
 ## Screenshots
 
@@ -39,7 +71,8 @@ Beautiful public status pages that you can share with your users.
 - **UI Components**: shadcn/ui
 - **Charts**: Recharts
 - **Email**: Nodemailer
-- **Scheduling**: node-cron
+- **Alerts**: Nodemailer (email), Twilio (phone), Webhooks
+- **Monitoring**: API-based cron architecture
 
 ## Getting Started
 
@@ -145,10 +178,24 @@ npm run dev
 
 6. Open [http://localhost:3200](http://localhost:3200) in your browser
 
-7. Start the monitoring service (in a separate terminal):
+7. **Monitoring in Manual Setup:**
+
+For manual installation, you have two options:
+
+**Option A: Use Docker for monitoring only** (Recommended)
 ```bash
-npm run monitor
+# Start just the monitor service
+docker compose up monitor
 ```
+
+**Option B: Set up external cron**
+Create a cron job that calls your API endpoint:
+```bash
+# Example: Add to crontab (Linux/Mac)
+* * * * * curl -X GET http://localhost:3200/api/cron/monitor -H "Authorization: Bearer YOUR_CRON_SECRET"
+```
+
+**Note:** All monitoring logic runs through the `/api/cron/monitor` API endpoint
 
 ## Authentication Setup
 
@@ -345,7 +392,8 @@ docker compose up
 - ✅ Hot reload - code changes reflect immediately
 - ✅ Volume mounting - edit files on your machine
 - ✅ Fast iteration - no rebuild needed
-- ✅ Full stack - MongoDB + App + Monitor service
+- ✅ Full stack - MongoDB + App + Cron service
+- ✅ API-based monitoring - cron service calls `/api/cron/monitor` endpoint
 
 **3. Access:**
 - Web UI: http://localhost:3200
@@ -362,88 +410,21 @@ Choose your deployment option based on your infrastructure:
 
 ##### **Option 1: Self-Hosted (Includes MongoDB)**
 
-Use this if you want to run everything in Docker containers on your own server.
-
-**1. Configure `.env` file (same as development)**
-
-**2. Build and start:**
 ```bash
 docker compose -f docker-compose.selfhosted.yml up -d --build
 ```
 
-**Features:**
-- ✅ All-in-one - MongoDB included in the stack
-- ✅ Multi-stage build - optimized image size
-- ✅ Production-ready - runs as non-root user
-- ✅ Auto-restart - services restart on failure
-
-**3. View logs:**
-```bash
-# All services
-docker compose -f docker-compose.selfhosted.yml logs -f
-
-# Specific service
-docker compose -f docker-compose.selfhosted.yml logs -f app
-```
-
-**4. Stop services:**
-```bash
-docker compose -f docker-compose.selfhosted.yml down
-```
-
 ---
 
-##### **Option 2: Managed Database (External MongoDB)**
+##### **Option 2: Managed Database (MongoDB Atlas)**
 
-Use this if you're using MongoDB Atlas, AWS DocumentDB, or other managed MongoDB services. **Ideal for small instances like AWS t3a.nano**.
-
-**1. Configure `.env` file with external MongoDB:**
 ```bash
-MONGODB_URI=mongodb+srv://user:pass@cluster.mongodb.net/uptime-monitor
-# ... other environment variables
-```
-
-**2. Pull and start:**
-```bash
-# Pull pre-built image from GitHub Container Registry
+# Update MONGODB_URI in .env, then:
 docker pull ghcr.io/screenappai/uptime-monitor:latest
-
-# Start services
 docker compose -f docker-compose.managed.yml up -d
 ```
 
-**Features:**
-- ✅ Lightweight - no MongoDB container (saves ~200-400 MB RAM)
-- ✅ Pre-built image - no build step required
-- ✅ Perfect for small instances (t3a.nano, t3a.micro)
-- ✅ Uses managed database services
-
-**3. View logs:**
-```bash
-docker compose -f docker-compose.managed.yml logs -f
-```
-
-**4. Stop services:**
-```bash
-docker compose -f docker-compose.managed.yml down
-```
-
-### VPS / Self-hosted
-
-1. Install Node.js and MongoDB
-2. Clone the repository
-3. Install dependencies with `npm install`
-4. Build the application with `npm run build`
-5. Start the application with `npm start`
-6. Use PM2 to run the monitoring service:
-```bash
-npm install -g pm2
-pm2 start scripts/monitor.js --name uptime-monitor
-pm2 startup
-pm2 save
-```
-
-### Vercel with Vercel Cron ⚡ (Serverless - Recommended for Low Traffic)
+### Vercel with Vercel Cron ⚡ (Serverless)
 
 Deploy to Vercel with built-in cron jobs for automated monitoring. Perfect for **low to medium traffic** sites.
 
@@ -509,28 +490,7 @@ After deployment, check:
 - You should see `/api/cron/monitor` scheduled to run every minute
 - Check the "Logs" tab to see cron executions
 
-**Features:**
-- ✅ **Zero infrastructure** - fully serverless
-- ✅ **Auto-scaling** - handles traffic spikes
-- ✅ **Free tier** - generous free limits
-- ✅ **Global CDN** - fast worldwide
-- ✅ **Built-in cron** - no external services needed
-
-**Limitations:**
-- ⚠️ **1-minute minimum** check interval (can't check every 30 seconds)
-- ⚠️ **60-second timeout** on Pro plan (10s on Hobby) - might limit very large monitor counts
-- ⚠️ **Cold starts** - first request after idle may be slower
-
-**Manual Trigger (for testing):**
-```bash
-curl -X POST https://your-app.vercel.app/api/cron/monitor \
-  -H "Authorization: Bearer YOUR_CRON_SECRET"
-```
-
-**Cost Estimate:**
-- Vercel: Free for hobby projects (commercial use requires Pro: $20/month)
-- MongoDB Atlas: Free tier (512 MB) sufficient for most use cases
-- **Total: $0-20/month**
+**Cost:** Free tier available, Pro $20/month for production. **Limitation:** 60s timeout (10s Hobby), 1-min minimum check interval.
 
 ---
 
@@ -538,18 +498,11 @@ curl -X POST https://your-app.vercel.app/api/cron/monitor \
 
 Deploy to AWS using Lambda (cron) + Amplify (frontend) for better performance and lower costs.
 
-**Why AWS?**
-- ✅ **15-minute timeout** vs 10 seconds on Vercel Hobby
-- ✅ **$0-9/month** vs $20/month Vercel Pro
-- ✅ **1M free Lambda requests/month**
-- ✅ **Better for multiple monitors**
+**Why AWS?** 15-min timeout, $0-9/month (vs $20/month Vercel Pro), 1M free Lambda requests.
 
-**Prerequisites:**
-- AWS Account
-- AWS CLI installed and configured
-- Node.js 18+ and npm
+**Prerequisites:** AWS account, AWS CLI, Node.js 18+
 
-**Quick Deploy:**
+**Deploy:**
 
 1. **Install Serverless Framework:**
 ```bash
@@ -565,68 +518,23 @@ aws configure
 
 3. **Set Environment Variables:**
 
-**Important:** AWS Lambda needs a publicly accessible MongoDB (not Docker localhost).
-
 ```bash
-# Create production environment file for AWS Lambda
-cp .env.example .env.production
-
-# Edit .env.production with production values
-notepad .env.production  # Windows
-# or
-nano .env.production     # Linux/Mac
+cp .env.lambda.example .env.lambda
+# Edit with: NEXT_PUBLIC_APP_URL (your deployed app) and CRON_SECRET
 ```
 
-**Required changes in `.env.production`:**
-- ✅ **MONGODB_URI**: Use MongoDB Atlas (not `mongodb://mongodb:27017`)
-  - Get free MongoDB Atlas at: https://www.mongodb.com/cloud/atlas
-  - Connection string format: `mongodb+srv://username:password@cluster.mongodb.net/uptime-monitor`
-- ✅ **EMAIL credentials**: Your SMTP settings (Gmail, AWS SES, etc.)
-- ✅ **TWILIO credentials**: If using phone call alerts
-- ✅ **CRON_SECRET**: Generate a random string for API security
+**Note:** Lambda only needs these 2 variables. All other config lives in your Next.js app.
 
-**Keep your local `.env` unchanged** - it's for Docker development with `mongodb://mongodb:27017`
+4. **Deploy Lambda:**
 
-4. **Deploy Lambda Functions:**
-
-**Important:** Copy production env before deploying:
 ```bash
-# Copy production environment to .env (required by Serverless)
-cp .env.production .env
-
-# Install dependencies and deploy
 npm install
 npm run deploy:lambda
 ```
 
-This creates:
-- Lambda function for monitor checks
-- EventBridge cron trigger (runs every 1 minute)
-- API Gateway endpoints for manual triggers
+Creates: Lambda function (~1-5 MB), EventBridge cron (1 min), API Gateway endpoints.
 
-**Output will show your endpoints:**
-```
-endpoints:
-  GET - https://xxxxx.execute-api.us-east-1.amazonaws.com/cron/monitor
-```
-
-5. **Deploy Frontend to Amplify:**
-
-**Option A: Amplify Console (Easiest)**
-1. Go to [AWS Amplify Console](https://console.aws.amazon.com/amplify/)
-2. Click **"New app"** → **"Host web app"**
-3. Connect your Git repository
-4. Amplify auto-detects Next.js (`amplify.yml` included)
-5. Add environment variables from `.env`
-6. Click **"Save and deploy"**
-
-**Option B: Amplify CLI**
-```bash
-npm install -g @aws-amplify/cli
-amplify init
-amplify add hosting
-amplify publish
-```
+5. **Deploy Frontend:** Use [AWS Amplify Console](https://console.aws.amazon.com/amplify/) - connect Git repo, add env vars, deploy.
 
 **Test Deployment:**
 ```bash
@@ -637,19 +545,7 @@ npm run invoke:cron
 npm run logs:cron
 ```
 
-**Available npm Scripts:**
-```bash
-npm run deploy:lambda          # Deploy to production (uses .env.production)
-npm run deploy:lambda:dev      # Deploy to dev stage (uses .env)
-npm run invoke:cron           # Test cron function
-npm run logs:cron             # View Lambda logs (tail)
-npm run remove:lambda         # Remove all Lambda resources
-npm run offline               # Test Lambda locally
-```
-
-**Environment Files:**
-- `.env` → Local development (Docker with `mongodb://mongodb:27017`)
-- `.env.production` → AWS Lambda production (MongoDB Atlas)
+**Useful commands:** `npm run invoke:cron` (test), `npm run logs:cron` (logs), `npm run remove:lambda` (cleanup)
 
 **Cost Breakdown:**
 
@@ -666,43 +562,9 @@ npm run offline               # Test Lambda locally
 - Amplify builds: Amplify Console
 - Set up CloudWatch alarms for errors
 
-**Architecture:**
-```
-EventBridge (Cron) → Lambda → MongoDB Atlas
-                                ↓
-                          Send Alerts
-                          
-User → Amplify (Next.js) → MongoDB Atlas
-```
 
-**Advantages over Vercel:**
-- 🚀 **15-minute timeout** vs 10 seconds
-- 💰 **Much cheaper** for cron workloads
-- 📊 **Better observability** with CloudWatch
-- ⚡ **More control** over execution environment
-- 🔧 **Easier debugging** with detailed logs
 
-**Troubleshooting:**
 
-1. **Lambda timeout:** Adjust in `serverless.yml` (default: 900s)
-2. **MongoDB connection:** Whitelist `0.0.0.0/0` in MongoDB Atlas
-3. **Amplify build fails:** Check environment variables
-4. **Cron not triggering:** Verify EventBridge rules in AWS Console
-
-**Rollback:**
-```bash
-# Lambda
-serverless rollback -t <timestamp>
-
-# Amplify
-# Go to Amplify Console → Deployments → Redeploy previous version
-```
-
-**Cleanup:**
-```bash
-npm run remove:lambda  # Remove Lambda functions
-amplify delete         # Remove Amplify app
-```
 
 ## CI/CD with GitHub Actions
 
@@ -757,27 +619,7 @@ Contributions are welcome! Please follow these steps:
 4. Push to the branch: `git push origin feature/amazing-feature`
 5. Open a Pull Request
 
-## Development
 
-```bash
-# Install dependencies
-npm install
-
-# Run development server
-npm run dev
-
-# Run monitoring service
-npm run monitor
-
-# Build for production
-npm run build
-
-# Start production server
-npm start
-
-# Lint code
-npm run lint
-```
 
 ## Roadmap
 
@@ -825,6 +667,67 @@ We welcome contributions! Please see our [CONTRIBUTING.md](CONTRIBUTING.md) file
 ### ⭐ Show Your Support
 
 If you find this project helpful, please give it a star on GitHub! It helps others discover the project.
+
+## Quick Reference
+
+### Environment Variables
+
+| File | Purpose | Required Variables |
+|------|---------|-------------------|
+| `.env` | Local development (Docker) | All variables (MongoDB, email, Twilio, etc.) |
+| `.env.lambda` | AWS Lambda deployment | `NEXT_PUBLIC_APP_URL`, `CRON_SECRET` |
+| Amplify/Vercel env | Next.js app production | All variables (MongoDB, email, Twilio, etc.) |
+
+### API Endpoints
+
+| Endpoint | Method | Purpose | Auth Required |
+|----------|--------|---------|---------------|
+| `/api/cron/monitor` | GET | Run monitor checks (called by cron) | Optional (CRON_SECRET) |
+| `/api/monitors` | GET/POST | List/create monitors | Yes |
+| `/api/monitors/[id]` | GET/PUT/DELETE | Monitor operations | Yes |
+| `/api/monitors/[id]/check` | POST | Manual check | Yes |
+| `/api/status-pages` | GET/POST | List/create status pages | Yes |
+| `/status/[slug]` | GET | Public status page | No |
+
+### Deployment Commands
+
+```bash
+# Docker development
+docker compose up                          # Start all services
+docker compose up monitor                  # Start only monitor service
+
+# AWS Lambda (uses .env.lambda)
+npm run deploy:lambda                      # Deploy to production (uses dotenv-cli)
+npm run invoke:cron                        # Test Lambda function
+npm run logs:cron                          # View Lambda logs
+npm run remove:lambda                      # Remove all Lambda resources
+
+# Vercel (if using Vercel instead)
+vercel                                     # Deploy to preview
+vercel --prod                              # Deploy to production
+```
+
+### Monitoring Architecture
+
+```
+┌─────────────────┐
+│  Cron Trigger   │  (EventBridge/Vercel Cron/Docker Script)
+└────────┬────────┘
+         │ Calls every minute
+         ▼
+┌─────────────────┐
+│  Next.js API    │  /api/cron/monitor
+│                 │  - Fetches monitors
+│                 │  - Checks endpoints
+│                 │  - Saves results
+│                 │  - Sends alerts
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│    MongoDB      │  Stores monitors & check history
+└─────────────────┘
+```
 
 ## Author
 

@@ -9,6 +9,7 @@ import { Trash2, Play, Pause, RefreshCw, BarChart3, Edit, ChevronDown, ChevronUp
 import Link from 'next/link'
 import { formatDuration } from '@/lib/utils'
 import MonitorForm from './MonitorForm'
+import { IContactList } from '@/models/ContactList'
 
 interface MonitorCardProps {
   monitor: Monitor
@@ -22,10 +23,29 @@ export default function MonitorCard({ monitor, onDelete, onUpdate }: MonitorCard
   const [updating, setUpdating] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [expanded, setExpanded] = useState(false)
+  const [contactLists, setContactLists] = useState<IContactList[]>([])
 
   useEffect(() => {
     fetchStats()
-  }, [monitor._id])
+    if (monitor.contactLists && monitor.contactLists.length > 0) {
+      fetchContactLists()
+    }
+  }, [monitor._id, monitor.contactLists])
+
+  const fetchContactLists = async () => {
+    try {
+      const response = await fetch('/api/contact-lists')
+      const result = await response.json()
+      if (result.success) {
+        const attachedLists = result.data.filter((list: IContactList) =>
+          monitor.contactLists?.includes(list._id)
+        )
+        setContactLists(attachedLists)
+      }
+    } catch (error) {
+      console.error('Failed to fetch contact lists:', error)
+    }
+  }
 
   const fetchStats = async () => {
     try {
@@ -256,6 +276,11 @@ export default function MonitorCard({ monitor, onDelete, onUpdate }: MonitorCard
                 <span className="text-gray-600 dark:text-gray-400">
                   {monitor.timeout}s timeout
                 </span>
+                {contactLists.length > 0 && (
+                  <span className="text-gray-600 dark:text-gray-400">
+                    {contactLists.length} contact list{contactLists.length > 1 ? 's' : ''}
+                  </span>
+                )}
                 {monitor.alerts?.email && monitor.alerts.email.length > 0 && (
                   <span className="text-gray-600 dark:text-gray-400">
                     {monitor.alerts.email.length} email{monitor.alerts.email.length > 1 ? 's' : ''}
@@ -282,6 +307,21 @@ export default function MonitorCard({ monitor, onDelete, onUpdate }: MonitorCard
 
             {expanded && (
               <div className="mt-3 space-y-2 text-xs sm:text-sm">
+                {contactLists.length > 0 && (
+                  <div>
+                    <p className="font-medium text-gray-700 dark:text-gray-300 mb-1">Contact Lists:</p>
+                    <ul className="list-disc list-inside space-y-0.5 text-gray-600 dark:text-gray-400">
+                      {contactLists.map((list) => {
+                        const totalContacts = list.emails.length + list.phones.length + list.webhooks.length
+                        return (
+                          <li key={list._id}>
+                            {list.name} ({totalContacts} contact{totalContacts !== 1 ? 's' : ''})
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  </div>
+                )}
                 {monitor.alerts?.email && monitor.alerts.email.length > 0 && (
                   <div>
                     <p className="font-medium text-gray-700 dark:text-gray-300 mb-1">Email Alerts:</p>

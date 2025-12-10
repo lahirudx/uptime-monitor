@@ -10,6 +10,7 @@ const updateMonitorSchema = z.object({
   interval: z.number().min(30).optional(),
   timeout: z.number().min(5).max(60).optional(),
   status: z.enum(['up', 'down', 'paused']).optional(),
+  contactLists: z.array(z.string()).optional(),
   alerts: z.object({
     email: z.array(z.string().email()).optional(),
     phone: z.array(z.string()).optional(),

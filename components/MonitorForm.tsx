@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Monitor } from '@/types'
+import { IContactList } from '@/models/ContactList'
 
 interface MonitorFormProps {
   monitor?: Monitor
@@ -22,8 +23,34 @@ export default function MonitorForm({ monitor, onSuccess, onCancel }: MonitorFor
     webhook: monitor?.alerts?.webhook?.join(', ') || '',
     phone: monitor?.alerts?.phone?.join(', ') || '',
   })
+  const [contactLists, setContactLists] = useState<IContactList[]>([])
+  const [selectedContactLists, setSelectedContactLists] = useState<string[]>(monitor?.contactLists || [])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+
+  useEffect(() => {
+    fetchContactLists()
+  }, [])
+
+  const fetchContactLists = async () => {
+    try {
+      const response = await fetch('/api/contact-lists')
+      const result = await response.json()
+      if (result.success) {
+        setContactLists(result.data)
+      }
+    } catch (error) {
+      console.error('Failed to fetch contact lists:', error)
+    }
+  }
+
+  const handleContactListToggle = (id: string) => {
+    setSelectedContactLists(prev =>
+      prev.includes(id)
+        ? prev.filter(listId => listId !== id)
+        : [...prev, id]
+    )
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -59,6 +86,7 @@ export default function MonitorForm({ monitor, onSuccess, onCancel }: MonitorFor
           type: formData.type,
           interval: formData.interval,
           timeout: formData.timeout,
+          contactLists: selectedContactLists,
           alerts,
         }),
       })
@@ -203,6 +231,45 @@ export default function MonitorForm({ monitor, onSuccess, onCancel }: MonitorFor
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Comma-separated</p>
         </div>
       </div>
+
+      {contactLists.length > 0 && (
+        <div>
+          <label className="block text-xs sm:text-sm font-medium mb-1.5 sm:mb-2 dark:text-white">
+            Contact Lists
+          </label>
+          <div className="border border-input rounded-md p-3 bg-background max-h-40 overflow-y-auto">
+            {contactLists.map((list) => {
+              const totalContacts = list.emails.length + list.phones.length + list.webhooks.length
+              return (
+                <div key={list._id} className="flex items-start gap-2 mb-2 last:mb-0">
+                  <input
+                    type="checkbox"
+                    id={`contact-list-${list._id}`}
+                    checked={selectedContactLists.includes(list._id)}
+                    onChange={() => handleContactListToggle(list._id)}
+                    className="mt-1"
+                  />
+                  <label
+                    htmlFor={`contact-list-${list._id}`}
+                    className="flex-1 cursor-pointer text-sm"
+                  >
+                    <div className="font-medium dark:text-white">{list.name}</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">
+                      {totalContacts} contact{totalContacts !== 1 ? 's' : ''}
+                      {list.emails.length > 0 && ` • ${list.emails.length} email${list.emails.length !== 1 ? 's' : ''}`}
+                      {list.phones.length > 0 && ` • ${list.phones.length} phone${list.phones.length !== 1 ? 's' : ''}`}
+                      {list.webhooks.length > 0 && ` • ${list.webhooks.length} webhook${list.webhooks.length !== 1 ? 's' : ''}`}
+                    </div>
+                  </label>
+                </div>
+              )
+            })}
+          </div>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            Select contact lists to automatically include their contacts in alerts
+          </p>
+        </div>
+      )}
 
       <div className="flex gap-2 justify-end pt-2">
         <Button

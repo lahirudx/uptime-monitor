@@ -153,6 +153,16 @@ export default function MonitorDetailPage() {
         <Card className="mb-8">
           <CardHeader>
             <CardTitle>Response Time (Last 24 Hours)</CardTitle>
+            <CardDescription className="flex items-center gap-4 mt-2">
+              <span className="flex items-center gap-1">
+                <span className="w-3 h-3 rounded-full bg-green-500"></span>
+                <span className="text-xs">Success</span>
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="w-3 h-3 rounded-full bg-red-500"></span>
+                <span className="text-xs">Failed</span>
+              </span>
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
@@ -160,13 +170,36 @@ export default function MonitorDetailPage() {
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="time" />
                 <YAxis />
-                <Tooltip />
+                <Tooltip 
+                  formatter={(value: any, name: string, props: any) => {
+                    if (name === 'responseTime') {
+                      return [formatDuration(value), 'Response Time']
+                    }
+                    return [value, name]
+                  }}
+                  labelFormatter={(label) => `Time: ${label}`}
+                  contentStyle={{ backgroundColor: 'rgba(0, 0, 0, 0.8)', border: 'none', borderRadius: '8px', color: '#fff' }}
+                />
                 <Line
                   type="monotone"
                   dataKey="responseTime"
                   stroke="#3b82f6"
                   strokeWidth={2}
-                  dot={false}
+                  dot={(props: any) => {
+                    const { cx, cy, payload, index } = props
+                    const isSuccess = payload.success === 1
+                    return (
+                      <circle
+                        key={`dot-${index}`}
+                        cx={cx}
+                        cy={cy}
+                        r={4}
+                        fill={isSuccess ? '#10b981' : '#ef4444'}
+                        stroke={isSuccess ? '#10b981' : '#ef4444'}
+                        strokeWidth={2}
+                      />
+                    )
+                  }}
                 />
               </LineChart>
             </ResponsiveContainer>

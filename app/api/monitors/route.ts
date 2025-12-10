@@ -9,6 +9,7 @@ const createMonitorSchema = z.object({
   type: z.enum(['http', 'https']).default('https'),
   interval: z.number().min(30).default(60),
   timeout: z.number().min(5).max(60).default(30),
+  contactLists: z.array(z.string()).optional(),
   alerts: z.object({
     email: z.array(z.string().email()).optional(),
     phone: z.array(z.string()).optional(),

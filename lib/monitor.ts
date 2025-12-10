@@ -64,6 +64,47 @@ export function calculateUptime(checks: { success: boolean }[]): number {
 }
 
 /**
+ * Expands contact lists to get all emails, phones, and webhooks
+ * Merges with direct alerts and removes duplicates
+ */
+async function expandContactLists(
+  contactListIds: string[] | undefined,
+  directAlerts: { email?: string[], phone?: string[], webhook?: string[] } | undefined
+) {
+  const allEmails = new Set<string>(directAlerts?.email || [])
+  const allPhones = new Set<string>(directAlerts?.phone || [])
+  const allWebhooks = new Set<string>(directAlerts?.webhook || [])
+
+  try {
+    if (contactListIds && contactListIds.length > 0) {
+      const ContactList = (await import('@/models/ContactList')).default
+      const contactLists = await ContactList.find({ _id: { $in: contactListIds } })
+
+      for (const list of contactLists) {
+        if (list.emails) {
+          list.emails.forEach((email: string) => allEmails.add(email))
+        }
+        if (list.phones) {
+          list.phones.forEach((phone: string) => allPhones.add(phone))
+        }
+        if (list.webhooks) {
+          list.webhooks.forEach((webhook: string) => allWebhooks.add(webhook))
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Error expanding contact lists:', error)
+    // Continue with direct alerts only if contact list expansion fails
+  }
+
+  return {
+    emails: Array.from(allEmails),
+    phones: Array.from(allPhones),
+    webhooks: Array.from(allWebhooks),
+  }
+}
+
+/**
  * Main function to run monitor checks for all active monitors
  * This can be called from a cron job, API route, or scheduled task
  */
@@ -85,93 +126,101 @@ export async function runMonitorChecks() {
     console.log(`Checking ${monitors.length} active monitors...`)
 
     for (const monitor of monitors) {
-      const now = new Date()
-      const lastCheck = monitor.lastCheck ? new Date(monitor.lastCheck) : new Date(0)
-      const timeSinceLastCheck = (now.getTime() - lastCheck.getTime()) / 1000 // in seconds
+      try {
+        const now = new Date()
+        const lastCheck = monitor.lastCheck ? new Date(monitor.lastCheck) : new Date(0)
+        const timeSinceLastCheck = (now.getTime() - lastCheck.getTime()) / 1000 // in seconds
 
-      // Only check if enough time has passed since last check
-      if (timeSinceLastCheck >= monitor.interval) {
-        console.log(`Checking monitor: ${monitor.name} (${monitor.url})`)
+        // Only check if enough time has passed since last check
+        if (timeSinceLastCheck >= monitor.interval) {
+          console.log(`Checking monitor: ${monitor.name} (${monitor.url})`)
 
-        const checkResult = await checkEndpoint(monitor.url, monitor.timeout * 1000)
+          const checkResult = await checkEndpoint(monitor.url, monitor.timeout * 1000)
 
-        // Save check result
-        await MonitorCheck.create({
-          monitorId: monitor._id.toString(),
-          success: checkResult.success,
-          responseTime: checkResult.responseTime,
-          statusCode: checkResult.statusCode,
-          error: checkResult.error,
-          timestamp: checkResult.timestamp,
-        })
+          // Save check result
+          await MonitorCheck.create({
+            monitorId: monitor._id.toString(),
+            success: checkResult.success,
+            responseTime: checkResult.responseTime,
+            statusCode: checkResult.statusCode,
+            error: checkResult.error,
+            timestamp: checkResult.timestamp,
+          })
 
-        // Update monitor status
-        const previousStatus = monitor.status
-        const newStatus = checkResult.success ? 'up' : 'down'
+          // Update monitor status
+          const previousStatus = monitor.status
+          const newStatus = checkResult.success ? 'up' : 'down'
 
-        await Monitor.findByIdAndUpdate(monitor._id, {
-          status: newStatus,
-          lastCheck: now,
-        })
+          await Monitor.findByIdAndUpdate(monitor._id, {
+            status: newStatus,
+            lastCheck: now,
+          })
 
-        console.log(`Monitor ${monitor.name}: ${newStatus} (${checkResult.responseTime}ms)`)
+          console.log(`Monitor ${monitor.name}: ${newStatus} (${checkResult.responseTime}ms)`)
 
-        // Send alerts if status changed from up to down
-        if (previousStatus === 'up' && newStatus === 'down') {
-          console.log(`Sending alerts for ${monitor.name}`)
+          // Send alerts if status changed from up to down
+          if (previousStatus === 'up' && newStatus === 'down') {
+            console.log(`Sending alerts for ${monitor.name}`)
 
-          // Send email alerts
-          if (monitor.alerts?.email && monitor.alerts.email.length > 0) {
-            for (const email of monitor.alerts.email) {
-              try {
-                await sendEmailAlert(
-                  monitor.name,
-                  monitor.url,
-                  checkResult.error || 'Unknown error',
-                  email
-                )
-                console.log(`Alert email sent to ${email}`)
-              } catch (error) {
-                console.error(`Failed to send email to ${email}:`, error)
+            // Expand contact lists and merge with direct alerts
+            const expandedContacts = await expandContactLists(monitor.contactLists, monitor.alerts)
+
+            // Send email alerts
+            if (expandedContacts.emails.length > 0) {
+              for (const email of expandedContacts.emails) {
+                try {
+                  await sendEmailAlert(
+                    monitor.name,
+                    monitor.url,
+                    checkResult.error || 'Unknown error',
+                    email
+                  )
+                  console.log(`Alert email sent to ${email}`)
+                } catch (error) {
+                  console.error(`Failed to send email to ${email}:`, error)
+                }
               }
             }
-          }
 
-          // Send webhook alerts
-          if (monitor.alerts?.webhook && monitor.alerts.webhook.length > 0) {
-            const { sendWebhookAlert } = await import('./notifications')
-            for (const webhookUrl of monitor.alerts.webhook) {
-              try {
-                await sendWebhookAlert(
-                  webhookUrl,
-                  monitor.name,
-                  monitor.url,
-                  checkResult.error || 'Unknown error'
-                )
-                console.log(`Webhook alert sent to ${webhookUrl}`)
-              } catch (error) {
-                console.error(`Failed to send webhook to ${webhookUrl}:`, error)
+            // Send webhook alerts
+            if (expandedContacts.webhooks.length > 0) {
+              const { sendWebhookAlert } = await import('./notifications')
+              for (const webhookUrl of expandedContacts.webhooks) {
+                try {
+                  await sendWebhookAlert(
+                    webhookUrl,
+                    monitor.name,
+                    monitor.url,
+                    checkResult.error || 'Unknown error'
+                  )
+                  console.log(`Webhook alert sent to ${webhookUrl}`)
+                } catch (error) {
+                  console.error(`Failed to send webhook to ${webhookUrl}:`, error)
+                }
               }
             }
-          }
 
-          // Send Twilio phone call alerts
-          if (monitor.alerts?.phone && monitor.alerts.phone.length > 0) {
-            for (const phoneNumber of monitor.alerts.phone) {
-              try {
-                await sendTwilioCall({
-                  to: phoneNumber,
-                  monitorName: monitor.name,
-                  url: monitor.url,
-                  status: 'down',
-                })
-                console.log(`Twilio call alert sent to ${phoneNumber}`)
-              } catch (error) {
-                console.error(`Failed to send Twilio call to ${phoneNumber}:`, error)
+            // Send Twilio phone call alerts
+            if (expandedContacts.phones.length > 0) {
+              for (const phoneNumber of expandedContacts.phones) {
+                try {
+                  await sendTwilioCall({
+                    to: phoneNumber,
+                    monitorName: monitor.name,
+                    url: monitor.url,
+                    status: 'down',
+                  })
+                  console.log(`Twilio call alert sent to ${phoneNumber}`)
+                } catch (error) {
+                  console.error(`Failed to send Twilio call to ${phoneNumber}:`, error)
+                }
               }
             }
           }
         }
+      } catch (error) {
+        console.error(`Error checking monitor ${monitor.name}:`, error)
+        // Continue with next monitor even if this one fails
       }
     }
 

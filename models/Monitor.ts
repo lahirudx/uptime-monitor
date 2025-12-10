@@ -37,6 +37,10 @@ const MonitorSchema = new Schema<Monitor>(
     lastCheck: {
       type: Date,
     },
+    contactLists: {
+      type: [String],
+      default: [],
+    },
     alerts: {
       email: [String],
       webhook: [String],

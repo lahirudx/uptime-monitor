@@ -8,7 +8,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge'
 import MonitorForm from '@/components/MonitorForm'
 import MonitorCard from '@/components/MonitorCard'
-import { Plus, RefreshCw, LogOut } from 'lucide-react'
+import { Plus, RefreshCw, LogOut, Users } from 'lucide-react'
+import Link from 'next/link'
 
 export default function DashboardPage() {
   const { data: session } = useSession()
@@ -71,6 +72,16 @@ export default function DashboardPage() {
             )}
           </div>
           <div className="flex gap-2">
+            <Link href="/dashboard/contact-lists">
+              <Button
+                variant="outline"
+                size="sm"
+                title="Contact Lists"
+              >
+                <Users className="w-4 h-4 sm:mr-2" />
+                <span className="hidden sm:inline">Contact Lists</span>
+              </Button>
+            </Link>
             <Button
               onClick={fetchMonitors}
               variant="outline"

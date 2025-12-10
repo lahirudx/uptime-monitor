@@ -9,6 +9,7 @@ export interface Monitor {
   lastCheck?: Date
   createdAt: Date
   updatedAt: Date
+  contactLists?: string[] // Contact List IDs
   alerts: {
     email?: string[]
     webhook?: string[]
