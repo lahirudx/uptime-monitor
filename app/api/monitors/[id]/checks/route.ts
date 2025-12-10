@@ -13,17 +13,51 @@ export async function GET(
 
     const { searchParams } = new URL(request.url)
     const limit = parseInt(searchParams.get('limit') || '100')
-    const hours = parseInt(searchParams.get('hours') || '24')
+    
+    let startDate: Date
+    let endDate: Date | undefined
+    
+    // Check if custom date range is provided
+    const customStartDate = searchParams.get('startDate')
+    const customEndDate = searchParams.get('endDate')
+    
+    if (customStartDate && customEndDate) {
+      // Use custom date range - handle both with and without timezone
+      startDate = new Date(customStartDate)
+      endDate = new Date(customEndDate)
+      
+      console.log('Custom date range request:', {
+        rawStart: customStartDate,
+        rawEnd: customEndDate,
+        parsedStart: startDate.toISOString(),
+        parsedEnd: endDate.toISOString(),
+        isValidStart: !isNaN(startDate.getTime()),
+        isValidEnd: !isNaN(endDate.getTime()),
+        monitorId: id
+      })
+    } else {
+      // Use hours parameter for relative time range
+      const hours = parseInt(searchParams.get('hours') || '24')
+      startDate = new Date()
+      startDate.setHours(startDate.getHours() - hours)
+    }
 
-    const startDate = new Date()
-    startDate.setHours(startDate.getHours() - hours)
-
-    const checks = await MonitorCheckModel.find({
+    const query: any = {
       monitorId: id,
       timestamp: { $gte: startDate },
-    })
+    }
+    
+    if (endDate) {
+      query.timestamp.$lte = endDate
+    }
+
+    console.log('MongoDB query:', JSON.stringify(query))
+
+    const checks = await MonitorCheckModel.find(query)
       .sort({ timestamp: -1 })
       .limit(limit)
+    
+    console.log(`Found ${checks.length} checks`)
 
     return NextResponse.json({
       success: true,

@@ -17,6 +17,10 @@ export default function MonitorDetailPage() {
   const [checks, setChecks] = useState<MonitorCheck[]>([])
   const [stats, setStats] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const [timeRange, setTimeRange] = useState<number>(24) // hours
+  const [customRange, setCustomRange] = useState(false)
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
 
   useEffect(() => {
     if (params.id) {
@@ -24,7 +28,7 @@ export default function MonitorDetailPage() {
       fetchChecks()
       fetchStats()
     }
-  }, [params.id])
+  }, [params.id, timeRange, startDate, endDate])
 
   const fetchMonitor = async () => {
     try {
@@ -41,7 +45,21 @@ export default function MonitorDetailPage() {
 
   const fetchChecks = async () => {
     try {
-      const response = await fetch(`/api/monitors/${params.id}/checks?hours=24&limit=100`)
+      let url = `/api/monitors/${params.id}/checks?`
+      
+      if (customRange && startDate && endDate) {
+        // Custom date range - ensure proper ISO format
+        const start = new Date(startDate).toISOString()
+        const end = new Date(endDate).toISOString()
+        url += `startDate=${encodeURIComponent(start)}&endDate=${encodeURIComponent(end)}&limit=10000`
+        console.log('Fetching custom range:', { start, end })
+      } else {
+        // Preset time range
+        const limit = timeRange === 1 ? 100 : timeRange === 6 ? 400 : timeRange === 24 ? 1500 : 10000
+        url += `hours=${timeRange}&limit=${limit}`
+      }
+      
+      const response = await fetch(url)
       const result = await response.json()
 
       if (result.success) {
@@ -152,7 +170,79 @@ export default function MonitorDetailPage() {
 
         <Card className="mb-8">
           <CardHeader>
-            <CardTitle>Response Time (Last 24 Hours)</CardTitle>
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <CardTitle>Response Time</CardTitle>
+              <div className="flex gap-2 flex-wrap">
+                <Button
+                  variant={!customRange && timeRange === 1 ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => { setCustomRange(false); setTimeRange(1); }}
+                >
+                  1h
+                </Button>
+                <Button
+                  variant={!customRange && timeRange === 6 ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => { setCustomRange(false); setTimeRange(6); }}
+                >
+                  6h
+                </Button>
+                <Button
+                  variant={!customRange && timeRange === 24 ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => { setCustomRange(false); setTimeRange(24); }}
+                >
+                  24h
+                </Button>
+                <Button
+                  variant={!customRange && timeRange === 168 ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => { setCustomRange(false); setTimeRange(168); }}
+                >
+                  7d
+                </Button>
+                <Button
+                  variant={customRange ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setCustomRange(!customRange)}
+                >
+                  Custom
+                </Button>
+              </div>
+            </div>
+            {customRange && (
+              <div className="flex gap-3 mt-3 flex-wrap items-end">
+                <div>
+                  <label className="text-xs text-gray-600 dark:text-gray-400 mb-1 block">Start Date</label>
+                  <input
+                    type="datetime-local"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="px-3 py-1.5 text-sm border rounded-md dark:bg-gray-800 dark:border-gray-700 dark:text-white"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-600 dark:text-gray-400 mb-1 block">End Date</label>
+                  <input
+                    type="datetime-local"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="px-3 py-1.5 text-sm border rounded-md dark:bg-gray-800 dark:border-gray-700 dark:text-white"
+                  />
+                </div>
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    if (startDate && endDate) {
+                      fetchChecks()
+                    }
+                  }}
+                  disabled={!startDate || !endDate}
+                >
+                  Apply
+                </Button>
+              </div>
+            )}
             <CardDescription className="flex items-center gap-4 mt-2">
               <span className="flex items-center gap-1">
                 <span className="w-3 h-3 rounded-full bg-green-500"></span>
