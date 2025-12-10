@@ -15,7 +15,7 @@ const ContactListUpdateSchema = z.object({
 
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions)
@@ -23,8 +23,9 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    const { id } = await params
     await connectDB()
-    const contactList = await ContactList.findById(params.id)
+    const contactList = await ContactList.findById(id)
 
     if (!contactList) {
       return NextResponse.json(
@@ -48,7 +49,7 @@ export async function GET(
 
 export async function PUT(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions)
@@ -56,12 +57,13 @@ export async function PUT(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    const { id } = await params
     const body = await request.json()
     const validatedData = ContactListUpdateSchema.parse(body)
 
     await connectDB()
     const contactList = await ContactList.findByIdAndUpdate(
-      params.id,
+      id,
       validatedData,
       { new: true, runValidators: true }
     )
@@ -95,7 +97,7 @@ export async function PUT(
 
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions)
@@ -103,8 +105,9 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    const { id } = await params
     await connectDB()
-    const contactList = await ContactList.findByIdAndDelete(params.id)
+    const contactList = await ContactList.findByIdAndDelete(id)
 
     if (!contactList) {
       return NextResponse.json(
