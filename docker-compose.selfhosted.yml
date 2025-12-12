@@ -11,9 +11,7 @@ services:
       MONGO_INITDB_DATABASE: uptime-monitor
 
   app:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: ghcr.io/screenappai/uptime-monitor:latest
     container_name: uptime-monitor-app
     restart: unless-stopped
     ports:
@@ -21,10 +19,11 @@ services:
     depends_on:
       - mongodb
     environment:
+      - NODE_ENV=production
       - MONGODB_URI=${MONGODB_URI:-mongodb://mongodb:27017/uptime-monitor}
-      - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3200}
-      - PORT=3200
-      - NEXTAUTH_URL=${NEXTAUTH_URL:-http://localhost:3200}
+      # Set these to your production domain in .env (e.g., https://monitor.yourdomain.com)
+      - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL}
+      - NEXTAUTH_URL=${NEXTAUTH_URL}
       - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
       - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD}

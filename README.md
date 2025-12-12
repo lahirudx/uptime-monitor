@@ -407,22 +407,82 @@ docker compose down
 
 #### Production Setup
 
+Both deployment options use the **same API-based cron architecture**:
+- 🔄 **Monitor Service**: Lightweight curl container (only ~32MB RAM!)
+- 📡 **How it works**: Calls `/api/cron/monitor` API endpoint every minute
+- ✅ **Benefits**: Simple, consistent, easy to debug
+
 Choose your deployment option based on your infrastructure:
 
-##### **Option 1: Self-Hosted (Includes MongoDB)**
+##### **Option 1: Self-Hosted (All-in-One - Includes MongoDB)**
 
+Best for: Single-server deployments, full control, isolated environments
+
+**1. Setup environment:**
 ```bash
-docker compose -f docker-compose.selfhosted.yml up -d --build
+cp .env.example .env
+# Edit .env with your production settings
 ```
+
+**Important:** Set these URLs to your production domain in `.env`:
+```env
+NEXT_PUBLIC_APP_URL=https://monitor.yourdomain.com
+NEXTAUTH_URL=https://monitor.yourdomain.com
+NEXTAUTH_SECRET=your-secret-here
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=your-secure-password
+# ... other credentials
+```
+
+**2. Deploy:**
+```bash
+# Pull latest image and start all services
+docker pull ghcr.io/screenappai/uptime-monitor:latest
+docker compose -f docker-compose.selfhosted.yml up -d
+```
+
+**What's included:**
+- MongoDB database (persistent storage)
+- Next.js app (pre-built from GHCR)
+- Monitor service (curl-based cron)
+
+**Requirements:**
+- 1GB+ RAM recommended
+- Docker & Docker Compose
 
 ---
 
-##### **Option 2: Managed Database (MongoDB Atlas)**
+##### **Option 2: Managed Database (Use MongoDB Atlas)**
 
+Best for: Small VPS (t3a.nano), cost optimization, managed database
+
+**1. Setup environment:**
 ```bash
-# Update MONGODB_URI in .env, then:
+cp .env.example .env
+# Edit .env with your MongoDB Atlas connection string
+```
+
+**2. Deploy:**
+```bash
 docker pull ghcr.io/screenappai/uptime-monitor:latest
 docker compose -f docker-compose.managed.yml up -d
+```
+
+**What's included:**
+- Next.js app (pre-built from GHCR)
+- Monitor service (curl-based cron)
+
+**Requirements:**
+- 512MB+ RAM (works on t3a.nano!)
+- MongoDB Atlas account (free tier available)
+- Docker & Docker Compose
+
+**Environment Variables Required:**
+```env
+# .env file
+MONGODB_URI=mongodb+srv://user:pass@cluster.mongodb.net/uptime-monitor
+CRON_SECRET=your-random-secret  # Optional but recommended
+# ... other vars (EMAIL_*, TWILIO_*, etc.)
 ```
 
 ### Vercel with Vercel Cron ⚡ (Serverless)
