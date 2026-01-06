@@ -20,6 +20,8 @@ frontend:
         - echo "TWILIO_AUTH_TOKEN=$TWILIO_AUTH_TOKEN" >> .env.production
         - echo "TWILIO_PHONE_NUMBER=$TWILIO_PHONE_NUMBER" >> .env.production
         - echo "CRON_SECRET=$CRON_SECRET" >> .env.production
+        - echo "FCM_RELAY_URL=$FCM_RELAY_URL" >> .env.production
+        - echo "FCM_RELAY_API_KEY=$FCM_RELAY_API_KEY" >> .env.production
         - cat .env.production
     build:
       commands:
