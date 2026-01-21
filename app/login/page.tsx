@@ -75,8 +75,7 @@ function LoginForm() {
       if (result?.error) {
         setError('Invalid OTP code')
       } else if (result?.ok) {
-        router.push(callbackUrl)
-        router.refresh()
+        window.location.href = callbackUrl
       }
     } catch (err) {
       setError('An error occurred. Please try again.')
@@ -102,11 +101,10 @@ function LoginForm() {
         redirect: false,
       })
 
-      if (result?.error) {
-        setError('Registration failed. Please try again.')
-      } else if (result?.ok) {
-        router.push(callbackUrl)
-        router.refresh()
+      if (result?.ok) {
+        window.location.href = callbackUrl
+      } else {
+        setError('Registration failed. Your code may have expired. Please start over.')
       }
     } catch (err) {
       setError('An error occurred. Please try again.')

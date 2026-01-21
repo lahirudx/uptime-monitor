@@ -61,3 +61,4 @@ relay/functions/.runtimeconfig.json
 
 # Claude Code
 .claude/
+.env.bak
