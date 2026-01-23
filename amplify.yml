@@ -5,20 +5,31 @@ frontend:
       commands:
         - npm ci
         # Create .env.production from Amplify environment variables
-        - echo "NEXTAUTH_SECRET=$NEXTAUTH_SECRET" >> .env.production
-        - echo "NEXTAUTH_URL=$NEXTAUTH_URL" >> .env.production
         - echo "MONGODB_URI=$MONGODB_URI" >> .env.production
-        - echo "ADMIN_USERNAME=$ADMIN_USERNAME" >> .env.production
-        - echo "ADMIN_PASSWORD=$ADMIN_PASSWORD" >> .env.production
+        - echo "NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL" >> .env.production
+        - echo "NEXTAUTH_URL=$NEXTAUTH_URL" >> .env.production
+        - echo "NEXTAUTH_SECRET=$NEXTAUTH_SECRET" >> .env.production
+        - echo "MULTI_TENANT=$MULTI_TENANT" >> .env.production
+        # Email Configuration
         - echo "EMAIL_HOST=$EMAIL_HOST" >> .env.production
         - echo "EMAIL_PORT=$EMAIL_PORT" >> .env.production
         - echo "EMAIL_USER=$EMAIL_USER" >> .env.production
         - echo "EMAIL_PASSWORD=$EMAIL_PASSWORD" >> .env.production
         - echo "EMAIL_FROM=$EMAIL_FROM" >> .env.production
-        - echo "NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL" >> .env.production
+        # Twilio Configuration
         - echo "TWILIO_ACCOUNT_SID=$TWILIO_ACCOUNT_SID" >> .env.production
         - echo "TWILIO_AUTH_TOKEN=$TWILIO_AUTH_TOKEN" >> .env.production
         - echo "TWILIO_PHONE_NUMBER=$TWILIO_PHONE_NUMBER" >> .env.production
+        # Monitoring Configuration
+        - echo "MONITOR_INTERVAL_SECONDS=$MONITOR_INTERVAL_SECONDS" >> .env.production
+        - echo "MONITOR_TIMEOUT_SECONDS=$MONITOR_TIMEOUT_SECONDS" >> .env.production
+        - echo "MONITOR_BATCH_SIZE=$MONITOR_BATCH_SIZE" >> .env.production
+        # Retry Configuration
+        - echo "RETRY_COUNT=$RETRY_COUNT" >> .env.production
+        - echo "RETRY_INITIAL_DELAY=$RETRY_INITIAL_DELAY" >> .env.production
+        - echo "RETRY_MULTIPLIER=$RETRY_MULTIPLIER" >> .env.production
+        - echo "RETRY_MAX_DELAY=$RETRY_MAX_DELAY" >> .env.production
+        # Cron Secret
         - echo "CRON_SECRET=$CRON_SECRET" >> .env.production
         # FCM Push Notifications - Option 1: Community Relay (Recommended)
         - echo "FCM_RELAY_URL=$FCM_RELAY_URL" >> .env.production
