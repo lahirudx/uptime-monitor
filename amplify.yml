@@ -36,6 +36,9 @@ frontend:
         - echo "FCM_RELAY_API_KEY=$FCM_RELAY_API_KEY" >> .env.production
         # FCM Push Notifications - Option 2: Direct Firebase (Advanced - optional)
         - echo "FIREBASE_SERVICE_ACCOUNT=$FIREBASE_SERVICE_ACCOUNT" >> .env.production
+        # Test Account (for app store review)
+        - echo "TEST_ACCOUNT_EMAIL=$TEST_ACCOUNT_EMAIL" >> .env.production
+        - echo "TEST_ACCOUNT_OTP=$TEST_ACCOUNT_OTP" >> .env.production
         - cat .env.production
     build:
       commands:

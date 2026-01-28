@@ -19,22 +19,33 @@ export async function POST(request: NextRequest) {
 
     await connectDB()
 
-    // Rate limiting: Check for recent OTP requests (max 3 per 10 minutes)
-    const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000)
-    const recentOTPs = await OTPTokenModel.countDocuments({
-      email: normalizedEmail,
-      createdAt: { $gte: tenMinutesAgo },
-    })
+    // Check if this is a test account (for app store review purposes)
+    const isTestAccount =
+      process.env.TEST_ACCOUNT_EMAIL &&
+      process.env.TEST_ACCOUNT_OTP &&
+      normalizedEmail === process.env.TEST_ACCOUNT_EMAIL.toLowerCase()
 
-    if (recentOTPs >= 3) {
-      return NextResponse.json(
-        { success: false, error: 'Too many OTP requests. Please wait 10 minutes.' },
-        { status: 429 }
-      )
+    // Rate limiting: Check for recent OTP requests (max 3 per 10 minutes)
+    // Skip rate limiting for test accounts
+    if (!isTestAccount) {
+      const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000)
+      const recentOTPs = await OTPTokenModel.countDocuments({
+        email: normalizedEmail,
+        createdAt: { $gte: tenMinutesAgo },
+      })
+
+      if (recentOTPs >= 3) {
+        return NextResponse.json(
+          { success: false, error: 'Too many OTP requests. Please wait 10 minutes.' },
+          { status: 429 }
+        )
+      }
     }
 
-    // Generate 6-digit OTP
-    const otp = crypto.randomInt(100000, 999999).toString()
+    // Generate 6-digit OTP (use fixed code for test accounts)
+    const otp = isTestAccount
+      ? process.env.TEST_ACCOUNT_OTP!
+      : crypto.randomInt(100000, 999999).toString()
     const hashedOTP = await bcrypt.hash(otp, 10)
 
     // Store OTP (expires in 10 minutes)
@@ -60,7 +71,8 @@ export async function POST(request: NextRequest) {
       })
 
       // In single-tenant mode, block users without invitations
-      if (!pendingInvitation) {
+      // Skip this check for test accounts
+      if (!pendingInvitation && !isTestAccount) {
         const isMultiTenant = process.env.MULTI_TENANT === 'true'
 
         if (!isMultiTenant) {
@@ -87,8 +99,10 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Send OTP email
-    await sendOTPEmail(normalizedEmail, otp, !!existingUser)
+    // Send OTP email (skip for test accounts)
+    if (!isTestAccount) {
+      await sendOTPEmail(normalizedEmail, otp, !!existingUser)
+    }
 
     return NextResponse.json({
       success: true,
