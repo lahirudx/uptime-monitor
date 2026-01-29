@@ -8,6 +8,7 @@ An open-source uptime monitoring system built with Next.js, MongoDB, and TypeScr
 ![MongoDB](https://img.shields.io/badge/MongoDB-8.0-green)
 [![Discord](https://img.shields.io/discord/1234567890?color=7289da&label=Discord&logo=discord&logoColor=white)](https://discord.gg/frS8QgUygn)
 [![Get it on Google Play](https://img.shields.io/badge/Google_Play-414141?style=flat&logo=google-play&logoColor=white)](https://play.google.com/store/apps/details?id=io.screenapp.uptime_monitor_mobile)
+[![Download on the App Store](https://img.shields.io/badge/App_Store-0D96F6?style=flat&logo=app-store&logoColor=white)](https://apps.apple.com/us/app/uptime-monitor-instant-alerts/id6757585500)
 
 ## Components
 
@@ -16,6 +17,7 @@ This project consists of three main components:
 - **Server** (root directory) - Next.js web dashboard + API backend
 - **[Mobile App](./mobile/README.md)** - Flutter mobile app for Android/iOS with push notifications
   - 📱 [Download on Google Play](https://play.google.com/store/apps/details?id=io.screenapp.uptime_monitor_mobile)
+  - 📱 [Download on the App Store](https://apps.apple.com/us/app/uptime-monitor-instant-alerts/id6757585500)
 - **[Relay](./relay/README.md)** - FCM relay service for push notifications
 
 > **📖 For detailed setup, configuration, and development guides for each component, please refer to their respective README files linked above.**
@@ -27,7 +29,7 @@ This project consists of three main components:
 - **Multi-Tenant Support** - Run in single-tenant (private) or multi-tenant (SaaS) mode
 - **Passwordless Authentication** - Secure email OTP login with 30-day sessions
 - **Team Management** - Invite users with role-based access control (owner, admin, member)
-- **Mobile App** - Native Flutter app for Android/iOS with push notifications ([Download on Google Play](https://play.google.com/store/apps/details?id=io.screenapp.uptime_monitor_mobile))
+- **Mobile App** - Native Flutter app for Android/iOS with push notifications ([Google Play](https://play.google.com/store/apps/details?id=io.screenapp.uptime_monitor_mobile) | [App Store](https://apps.apple.com/us/app/uptime-monitor-instant-alerts/id6757585500))
 - **Public Status Pages** - Create beautiful, branded status pages for your services
 - **Historical Analytics** - Track uptime percentages and response times over 24h, 7d, and 30d periods
 - **Response Time Tracking** - Visualize response times with interactive charts (red dots for failures)
@@ -81,7 +83,7 @@ Detailed view of each monitor with response time charts and flexible time range 
 
 ### Mobile App
 
-Monitor your services on the go with the native mobile app. [Download on Google Play](https://play.google.com/store/apps/details?id=io.screenapp.uptime_monitor_mobile)
+Monitor your services on the go with the native mobile app. [Google Play](https://play.google.com/store/apps/details?id=io.screenapp.uptime_monitor_mobile) | [App Store](https://apps.apple.com/us/app/uptime-monitor-instant-alerts/id6757585500)
 
 <p float="left">
   <img src="https://download.meetrix.io/uptimemonitor/android/dashboard.jpg" width="200" alt="Mobile Dashboard" />

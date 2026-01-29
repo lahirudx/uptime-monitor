@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
         createdAt: { $gte: tenMinutesAgo },
       })
 
-      if (recentOTPs >= 3) {
+      if (recentOTPs >= 10) {
         return NextResponse.json(
           { success: false, error: 'Too many OTP requests. Please wait 10 minutes.' },
           { status: 429 }

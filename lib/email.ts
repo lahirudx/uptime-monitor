@@ -13,13 +13,37 @@ function getTransporter() {
   })
 }
 
+export async function sendEmail({
+  to,
+  subject,
+  html,
+  context,
+}: {
+  to: string
+  subject: string
+  html: string
+  context: string
+}): Promise<void> {
+  const transporter = getTransporter()
+  try {
+    const info = await transporter.sendMail({
+      from: process.env.EMAIL_FROM || 'noreply@uptimemonitor.com',
+      to,
+      subject,
+      html,
+    })
+    console.log(`[Email:${context}] Sent to ${to} (messageId: ${info.messageId})`)
+  } catch (error) {
+    console.error(`[Email:${context}] Failed to send to ${to}:`, error)
+    throw error
+  }
+}
+
 export async function sendOTPEmail(
   email: string,
   otp: string,
   isExistingUser: boolean
 ): Promise<void> {
-  const transporter = getTransporter()
-
   const subject = isExistingUser
     ? 'Your login code for Uptime Monitor'
     : 'Verify your email for Uptime Monitor'
@@ -42,12 +66,7 @@ export async function sendOTPEmail(
     </div>
   `
 
-  await transporter.sendMail({
-    from: process.env.EMAIL_FROM || 'noreply@uptimemonitor.com',
-    to: email,
-    subject,
-    html,
-  })
+  await sendEmail({ to: email, subject, html, context: 'OTP' })
 }
 
 export async function sendInvitationEmail(
@@ -56,8 +75,6 @@ export async function sendInvitationEmail(
   inviterName: string,
   inviteUrl: string
 ): Promise<void> {
-  const transporter = getTransporter()
-
   const html = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
       <h2 style="color: #3b82f6;">You've been invited!</h2>
@@ -79,10 +96,10 @@ export async function sendInvitationEmail(
     </div>
   `
 
-  await transporter.sendMail({
-    from: process.env.EMAIL_FROM || 'noreply@uptimemonitor.com',
+  await sendEmail({
     to: email,
     subject: `Join ${organizationName} on Uptime Monitor`,
     html,
+    context: 'Invitation',
   })
 }

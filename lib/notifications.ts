@@ -1,5 +1,5 @@
-import nodemailer from 'nodemailer'
 import axios from 'axios'
+import { sendEmail } from '@/lib/email'
 
 export interface EmailNotification {
   to: string
@@ -18,17 +18,6 @@ export async function sendEmailAlert(
   error: string,
   recipientEmail: string
 ): Promise<void> {
-  const emailPort = parseInt(process.env.EMAIL_PORT || '587')
-  const transporter = nodemailer.createTransport({
-    host: process.env.EMAIL_HOST || 'smtp.gmail.com',
-    port: emailPort,
-    secure: emailPort === 465, // true for 465, false for other ports (like 587)
-    auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASSWORD,
-    },
-  })
-
   const html = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
       <h2 style="color: #dc2626;">🚨 Monitor Alert: ${monitorName} is DOWN</h2>
@@ -42,11 +31,11 @@ export async function sendEmailAlert(
     </div>
   `
 
-  await transporter.sendMail({
-    from: process.env.EMAIL_FROM || 'noreply@uptimemonitor.com',
+  await sendEmail({
     to: recipientEmail,
     subject: `🚨 Alert: ${monitorName} is DOWN`,
     html,
+    context: 'Alert',
   })
 }
 
@@ -70,17 +59,6 @@ export async function sendRecoveryNotification(
   url: string,
   recipientEmail: string
 ): Promise<void> {
-  const emailPort = parseInt(process.env.EMAIL_PORT || '587')
-  const transporter = nodemailer.createTransport({
-    host: process.env.EMAIL_HOST || 'smtp.gmail.com',
-    port: emailPort,
-    secure: emailPort === 465, // true for 465, false for other ports (like 587)
-    auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASSWORD,
-    },
-  })
-
   const html = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
       <h2 style="color: #16a34a;">✅ Monitor Recovered: ${monitorName} is UP</h2>
@@ -93,10 +71,10 @@ export async function sendRecoveryNotification(
     </div>
   `
 
-  await transporter.sendMail({
-    from: process.env.EMAIL_FROM || 'noreply@uptimemonitor.com',
+  await sendEmail({
     to: recipientEmail,
     subject: `✅ Recovery: ${monitorName} is UP`,
     html,
+    context: 'Recovery',
   })
 }
