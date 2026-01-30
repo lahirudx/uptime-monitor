@@ -12,7 +12,7 @@ const features = [
   },
   {
     title: "Instant Alerts",
-    description: "Get notified via email or webhooks when your services go down. Never miss an outage again.",
+    description: "Get notified via email or mobile app when your services go down. Never miss an outage again.",
     href: "/dashboard",
     label: "Set up alerts",
     icon: Bell,
