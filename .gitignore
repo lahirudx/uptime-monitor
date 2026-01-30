@@ -62,3 +62,6 @@ relay/functions/.runtimeconfig.json
 # Claude Code
 .claude/
 .env.bak
+
+# VSCode
+.vscode/settings.json
