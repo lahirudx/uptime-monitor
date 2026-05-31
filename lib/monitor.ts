@@ -1,5 +1,6 @@
 import axios, { AxiosError } from 'axios'
 import { RetryConfig } from '@/types'
+import { MAX_MONITOR_TIMEOUT_SECONDS } from './monitor-config'
 
 export interface MonitorCheckResult {
   success: boolean
@@ -391,7 +392,7 @@ const SWEEP_GRACE_MS = parseInt(process.env.SWEEP_GRACE_MS || '5000', 10)
 // trailing check is still running. Each failed attempt waits up to
 // RETRY_MAX_DELAY before the next, so worst case is:
 //   maxTimeout × (retries + 1) + retryMaxDelay × retries
-const MAX_MONITOR_TIMEOUT_MS = 60 * 1000 // schema cap on monitor.timeout (models/Monitor.ts)
+const MAX_MONITOR_TIMEOUT_MS = MAX_MONITOR_TIMEOUT_SECONDS * 1000 // configurable cap (lib/monitor-config.ts)
 const RETRY_COUNT_FOR_BUDGET = parseInt(process.env.RETRY_COUNT || '1', 10)
 const RETRY_MAX_DELAY_FOR_BUDGET = parseInt(process.env.RETRY_MAX_DELAY || '5000', 10)
 const MAX_SINGLE_CHECK_MS =

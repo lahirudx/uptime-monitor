@@ -3,14 +3,27 @@ import { connectDB } from '@/lib/db'
 import MonitorModel from '@/models/Monitor'
 import OrganizationModel from '@/models/Organization'
 import { requireUniversalAuth, getOrganizationFilter, requireRole } from '@/lib/auth-helpers'
+import {
+  MIN_MONITOR_INTERVAL_SECONDS,
+  DEFAULT_MONITOR_INTERVAL_SECONDS,
+  MAX_MONITOR_TIMEOUT_SECONDS,
+  DEFAULT_MONITOR_TIMEOUT_SECONDS,
+} from '@/lib/monitor-config'
 import { z } from 'zod'
 
 const createMonitorSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   url: z.string().url('Valid URL is required'),
   type: z.enum(['http', 'https']).default('https'),
-  interval: z.number().min(30).default(60),
-  timeout: z.number().min(5).max(60).default(30),
+  interval: z
+    .number()
+    .min(MIN_MONITOR_INTERVAL_SECONDS, `Interval must be at least ${MIN_MONITOR_INTERVAL_SECONDS}s`)
+    .default(DEFAULT_MONITOR_INTERVAL_SECONDS),
+  timeout: z
+    .number()
+    .min(5)
+    .max(MAX_MONITOR_TIMEOUT_SECONDS, `Timeout must be at most ${MAX_MONITOR_TIMEOUT_SECONDS}s`)
+    .default(DEFAULT_MONITOR_TIMEOUT_SECONDS),
   contactLists: z.array(z.string()).optional(),
   alerts: z.object({
     email: z.array(z.string().email()).optional(),
@@ -74,7 +87,11 @@ export async function POST(request: NextRequest) {
     const monitor = await MonitorModel.create({
       ...validatedData,
       organizationId: user!.organizationId,
-      status: 'paused',
+      // Start active so the next cron sweep checks it immediately. Begin as
+      // 'up' (optimistic) so the first check only alerts on a genuine
+      // up->down; starting 'down' would fire a spurious recovery alert when
+      // the first check finds it healthy.
+      status: 'up',
     })
 
     return NextResponse.json({

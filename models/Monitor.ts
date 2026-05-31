@@ -1,5 +1,11 @@
 import mongoose, { Schema, Model } from 'mongoose'
 import { Monitor } from '@/types'
+import {
+  MIN_MONITOR_INTERVAL_SECONDS,
+  DEFAULT_MONITOR_INTERVAL_SECONDS,
+  MAX_MONITOR_TIMEOUT_SECONDS,
+  DEFAULT_MONITOR_TIMEOUT_SECONDS,
+} from '@/lib/monitor-config'
 
 const MonitorSchema = new Schema(
   {
@@ -26,14 +32,14 @@ const MonitorSchema = new Schema(
     },
     interval: {
       type: Number,
-      default: 60, // 60 seconds
-      min: 30,
+      default: DEFAULT_MONITOR_INTERVAL_SECONDS,
+      min: MIN_MONITOR_INTERVAL_SECONDS,
     },
     timeout: {
       type: Number,
-      default: 30, // 30 seconds
+      default: DEFAULT_MONITOR_TIMEOUT_SECONDS,
       min: 5,
-      max: 60,
+      max: MAX_MONITOR_TIMEOUT_SECONDS,
     },
     status: {
       type: String,

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { connectDB } from '@/lib/db'
 import MonitorModel from '@/models/Monitor'
 import { requireUniversalAuth, getOrganizationFilter, requireRole } from '@/lib/auth-helpers'
+import { MIN_MONITOR_INTERVAL_SECONDS, MAX_MONITOR_TIMEOUT_SECONDS } from '@/lib/monitor-config'
 import { z } from 'zod'
 import mongoose from 'mongoose'
 
@@ -9,8 +10,15 @@ const updateMonitorSchema = z.object({
   name: z.string().min(1).optional(),
   url: z.string().url().optional(),
   type: z.enum(['http', 'https']).optional(),
-  interval: z.number().min(30).optional(),
-  timeout: z.number().min(5).max(60).optional(),
+  interval: z
+    .number()
+    .min(MIN_MONITOR_INTERVAL_SECONDS, `Interval must be at least ${MIN_MONITOR_INTERVAL_SECONDS}s`)
+    .optional(),
+  timeout: z
+    .number()
+    .min(5)
+    .max(MAX_MONITOR_TIMEOUT_SECONDS, `Timeout must be at most ${MAX_MONITOR_TIMEOUT_SECONDS}s`)
+    .optional(),
   status: z.enum(['up', 'down', 'paused']).optional(),
   contactLists: z.array(z.string()).optional(),
   alerts: z.object({

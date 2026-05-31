@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Monitor } from '@/types'
 import { ContactList } from '@/types'
+import { useAppConfig } from '@/components/providers'
 
 interface MonitorFormProps {
   monitor?: Monitor
@@ -13,12 +14,13 @@ interface MonitorFormProps {
 }
 
 export default function MonitorForm({ monitor, onSuccess, onCancel }: MonitorFormProps) {
+  const { minMonitorInterval, maxMonitorTimeout } = useAppConfig()
   const [formData, setFormData] = useState({
     name: monitor?.name || '',
     url: monitor?.url || '',
     type: (monitor?.type || 'https') as 'http' | 'https',
-    interval: monitor?.interval || 60,
-    timeout: monitor?.timeout || 30,
+    interval: monitor?.interval || Math.max(60, minMonitorInterval),
+    timeout: monitor?.timeout || Math.min(30, maxMonitorTimeout),
     email: monitor?.alerts?.email?.join(', ') || '',
     webhook: monitor?.alerts?.webhook?.join(', ') || '',
     phone: monitor?.alerts?.phone?.join(', ') || '',
@@ -164,7 +166,7 @@ export default function MonitorForm({ monitor, onSuccess, onCancel }: MonitorFor
           </label>
           <Input
             type="number"
-            min="30"
+            min={minMonitorInterval}
             value={formData.interval}
             onChange={(e) => setFormData({ ...formData, interval: parseInt(e.target.value) })}
             required
@@ -179,7 +181,7 @@ export default function MonitorForm({ monitor, onSuccess, onCancel }: MonitorFor
           <Input
             type="number"
             min="5"
-            max="60"
+            max={maxMonitorTimeout}
             value={formData.timeout}
             onChange={(e) => setFormData({ ...formData, timeout: parseInt(e.target.value) })}
             required
