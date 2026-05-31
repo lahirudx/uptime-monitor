@@ -14,7 +14,7 @@ interface MonitorFormProps {
 }
 
 export default function MonitorForm({ monitor, onSuccess, onCancel }: MonitorFormProps) {
-  const { minMonitorInterval, maxMonitorTimeout } = useAppConfig()
+  const { minMonitorInterval, maxMonitorTimeout, canUsePhoneAlerts } = useAppConfig()
   const [formData, setFormData] = useState({
     name: monitor?.name || '',
     url: monitor?.url || '',
@@ -70,7 +70,7 @@ export default function MonitorForm({ monitor, onSuccess, onCancel }: MonitorFor
         alerts.webhook = formData.webhook.split(',').map(w => w.trim()).filter(Boolean)
       }
 
-      if (formData.phone) {
+      if (canUsePhoneAlerts && formData.phone) {
         alerts.phone = formData.phone.split(',').map(p => p.trim()).filter(Boolean)
       }
 
@@ -205,19 +205,21 @@ export default function MonitorForm({ monitor, onSuccess, onCancel }: MonitorFor
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Comma-separated</p>
         </div>
 
-        <div>
-          <label className="block text-xs sm:text-sm font-medium mb-1.5 sm:mb-2 dark:text-white">
-            Phone Numbers
-          </label>
-          <Input
-            type="text"
-            placeholder="+1234567890"
-            value={formData.phone}
-            onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-            className="h-9 sm:h-10 text-sm"
-          />
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Include country code</p>
-        </div>
+        {canUsePhoneAlerts && (
+          <div>
+            <label className="block text-xs sm:text-sm font-medium mb-1.5 sm:mb-2 dark:text-white">
+              Phone Numbers
+            </label>
+            <Input
+              type="text"
+              placeholder="+1234567890"
+              value={formData.phone}
+              onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+              className="h-9 sm:h-10 text-sm"
+            />
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Include country code</p>
+          </div>
+        )}
 
         <div>
           <label className="block text-xs sm:text-sm font-medium mb-1.5 sm:mb-2 dark:text-white">

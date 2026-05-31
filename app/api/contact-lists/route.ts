@@ -3,6 +3,7 @@ import { connectDB } from '@/lib/db'
 import ContactListModel from '@/models/ContactList'
 import OrganizationModel from '@/models/Organization'
 import { requireUniversalAuth, getOrganizationFilter, requireRole } from '@/lib/auth-helpers'
+import { isPhoneAlertAllowed } from '@/lib/phone-alerts'
 import { z } from 'zod'
 
 const ContactListSchema = z.object({
@@ -49,6 +50,14 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json()
     const validatedData = ContactListSchema.parse(body)
+
+    // Phone (Twilio) alerts may be gated to an email allowlist (lib/phone-alerts.ts).
+    if (validatedData.phones?.length && !isPhoneAlertAllowed(user!.email)) {
+      return NextResponse.json(
+        { success: false, error: 'Phone notifications are restricted to the instance maintainer.' },
+        { status: 403 }
+      )
+    }
 
     await connectDB()
 

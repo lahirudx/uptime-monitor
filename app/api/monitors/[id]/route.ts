@@ -3,6 +3,7 @@ import { connectDB } from '@/lib/db'
 import MonitorModel from '@/models/Monitor'
 import { requireUniversalAuth, getOrganizationFilter, requireRole } from '@/lib/auth-helpers'
 import { MIN_MONITOR_INTERVAL_SECONDS, MAX_MONITOR_TIMEOUT_SECONDS } from '@/lib/monitor-config'
+import { isPhoneAlertAllowed } from '@/lib/phone-alerts'
 import { z } from 'zod'
 import mongoose from 'mongoose'
 
@@ -81,6 +82,14 @@ export async function PUT(
     const { id } = await params
     const body = await request.json()
     const validatedData = updateMonitorSchema.parse(body)
+
+    // Phone (Twilio) alerts may be gated to an email allowlist (lib/phone-alerts.ts).
+    if (validatedData.alerts?.phone?.length && !isPhoneAlertAllowed(user!.email)) {
+      return NextResponse.json(
+        { success: false, error: 'Phone notifications are restricted to the instance maintainer.' },
+        { status: 403 }
+      )
+    }
 
     await connectDB()
 

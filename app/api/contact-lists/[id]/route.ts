@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { connectDB } from '@/lib/db'
 import ContactListModel from '@/models/ContactList'
 import { requireUniversalAuth, getOrganizationFilter, requireRole } from '@/lib/auth-helpers'
+import { isPhoneAlertAllowed } from '@/lib/phone-alerts'
 import { z } from 'zod'
 import mongoose from 'mongoose'
 
@@ -66,6 +67,14 @@ export async function PUT(
     const { id } = await params
     const body = await request.json()
     const validatedData = ContactListUpdateSchema.parse(body)
+
+    // Phone (Twilio) alerts may be gated to an email allowlist (lib/phone-alerts.ts).
+    if (validatedData.phones?.length && !isPhoneAlertAllowed(user!.email)) {
+      return NextResponse.json(
+        { success: false, error: 'Phone notifications are restricted to the instance maintainer.' },
+        { status: 403 }
+      )
+    }
 
     await connectDB()
 

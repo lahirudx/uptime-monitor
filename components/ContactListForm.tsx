@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { X } from 'lucide-react'
 import { ContactList } from '@/types'
+import { useAppConfig } from '@/components/providers'
 
 interface ContactListFormProps {
   contactList?: ContactList
@@ -15,6 +16,7 @@ interface ContactListFormProps {
 }
 
 export default function ContactListForm({ contactList, onSuccess, onCancel }: ContactListFormProps) {
+  const { canUsePhoneAlerts } = useAppConfig()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -66,6 +68,16 @@ export default function ContactListForm({ contactList, onSuccess, onCancel }: Co
     setError('')
     setLoading(true)
 
+    // Flush any value left in an input box that wasn't "Add"ed yet, so a user
+    // who types an entry and hits Save (without clicking Add) doesn't lose it.
+    const appendPending = (list: string[], pending: string) => {
+      const v = pending.trim()
+      return v && !list.includes(v) ? [...list, v] : list
+    }
+    const finalEmails = appendPending(emails, emailInput)
+    const finalPhones = appendPending(phones, phoneInput)
+    const finalWebhooks = appendPending(webhooks, webhookInput)
+
     try {
       const url = contactList
         ? `/api/contact-lists/${contactList._id}`
@@ -81,9 +93,11 @@ export default function ContactListForm({ contactList, onSuccess, onCancel }: Co
         body: JSON.stringify({
           name,
           description,
-          emails,
-          phones,
-          webhooks,
+          emails: finalEmails,
+          // Omit phones entirely when the user isn't allowed to set them, so
+          // the server keeps existing values (and never receives new ones).
+          ...(canUsePhoneAlerts ? { phones: finalPhones } : {}),
+          webhooks: finalWebhooks,
         }),
       })
 
@@ -166,40 +180,42 @@ export default function ContactListForm({ contactList, onSuccess, onCancel }: Co
         )}
       </div>
 
-      <div className="space-y-2">
-        <Label>Phone Numbers</Label>
-        <div className="flex gap-2">
-          <Input
-            type="tel"
-            value={phoneInput}
-            onChange={(e) => setPhoneInput(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddPhone())}
-            placeholder="+1234567890"
-          />
-          <Button type="button" onClick={handleAddPhone} variant="outline">
-            Add
-          </Button>
-        </div>
-        {phones.length > 0 && (
-          <div className="flex flex-wrap gap-2 mt-2">
-            {phones.map((phone, index) => (
-              <div
-                key={index}
-                className="flex items-center gap-1 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 px-3 py-1 rounded-full text-sm"
-              >
-                <span>{phone}</span>
-                <button
-                  type="button"
-                  onClick={() => handleRemovePhone(phone)}
-                  className="hover:text-green-600 dark:hover:text-green-200"
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              </div>
-            ))}
+      {canUsePhoneAlerts && (
+        <div className="space-y-2">
+          <Label>Phone Numbers</Label>
+          <div className="flex gap-2">
+            <Input
+              type="tel"
+              value={phoneInput}
+              onChange={(e) => setPhoneInput(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddPhone())}
+              placeholder="+1234567890"
+            />
+            <Button type="button" onClick={handleAddPhone} variant="outline">
+              Add
+            </Button>
           </div>
-        )}
-      </div>
+          {phones.length > 0 && (
+            <div className="flex flex-wrap gap-2 mt-2">
+              {phones.map((phone, index) => (
+                <div
+                  key={index}
+                  className="flex items-center gap-1 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 px-3 py-1 rounded-full text-sm"
+                >
+                  <span>{phone}</span>
+                  <button
+                    type="button"
+                    onClick={() => handleRemovePhone(phone)}
+                    className="hover:text-green-600 dark:hover:text-green-200"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="space-y-2">
         <Label>Webhook URLs</Label>

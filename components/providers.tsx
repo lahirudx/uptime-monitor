@@ -4,7 +4,11 @@ import { SessionProvider } from 'next-auth/react'
 import { createContext, useContext, ReactNode } from 'react'
 
 type Brand = { name: string; tagline: string }
-type AppConfig = { minMonitorInterval: number; maxMonitorTimeout: number }
+type AppConfig = {
+  minMonitorInterval: number
+  maxMonitorTimeout: number
+  canUsePhoneAlerts: boolean
+}
 
 const BrandContext = createContext<Brand>({
   name: 'Uptime Monitor',
@@ -14,6 +18,7 @@ const BrandContext = createContext<Brand>({
 const ConfigContext = createContext<AppConfig>({
   minMonitorInterval: 30,
   maxMonitorTimeout: 60,
+  canUsePhoneAlerts: true,
 })
 
 export function useBrand() {

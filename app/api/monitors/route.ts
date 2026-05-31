@@ -9,6 +9,7 @@ import {
   MAX_MONITOR_TIMEOUT_SECONDS,
   DEFAULT_MONITOR_TIMEOUT_SECONDS,
 } from '@/lib/monitor-config'
+import { isPhoneAlertAllowed } from '@/lib/phone-alerts'
 import { z } from 'zod'
 
 const createMonitorSchema = z.object({
@@ -68,6 +69,15 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json()
     const validatedData = createMonitorSchema.parse(body)
+
+    // Phone (Twilio) alerts may be gated to an email allowlist (see
+    // lib/phone-alerts.ts). Reject if a non-allowed user supplies phone numbers.
+    if (validatedData.alerts?.phone?.length && !isPhoneAlertAllowed(user!.email)) {
+      return NextResponse.json(
+        { success: false, error: 'Phone notifications are restricted to the instance maintainer.' },
+        { status: 403 }
+      )
+    }
 
     await connectDB()
 
