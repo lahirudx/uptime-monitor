@@ -20,10 +20,9 @@ frontend:
         - echo "TWILIO_ACCOUNT_SID=$TWILIO_ACCOUNT_SID" >> .env.production
         - echo "TWILIO_AUTH_TOKEN=$TWILIO_AUTH_TOKEN" >> .env.production
         - echo "TWILIO_PHONE_NUMBER=$TWILIO_PHONE_NUMBER" >> .env.production
-        # Monitoring Configuration
-        - echo "MONITOR_INTERVAL_SECONDS=$MONITOR_INTERVAL_SECONDS" >> .env.production
-        - echo "MONITOR_TIMEOUT_SECONDS=$MONITOR_TIMEOUT_SECONDS" >> .env.production
-        - echo "MONITOR_BATCH_SIZE=$MONITOR_BATCH_SIZE" >> .env.production
+        # Sweep scheduling (must equal your cron cadence in ms)
+        - echo "SWEEP_WINDOW_MS=$SWEEP_WINDOW_MS" >> .env.production
+        - echo "SWEEP_GRACE_MS=$SWEEP_GRACE_MS" >> .env.production
         # Retry Configuration
         - echo "RETRY_COUNT=$RETRY_COUNT" >> .env.production
         - echo "RETRY_INITIAL_DELAY=$RETRY_INITIAL_DELAY" >> .env.production

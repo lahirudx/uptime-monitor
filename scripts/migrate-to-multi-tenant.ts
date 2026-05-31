@@ -172,7 +172,6 @@ async function migrate() {
     console.log('\nNext steps:')
     console.log('1. Login with your email to receive an OTP')
     console.log('2. You can now invite other users to your organization')
-    console.log('3. Remove ADMIN_USERNAME and ADMIN_PASSWORD from .env (no longer needed)')
   } catch (error) {
     console.error('\nMigration failed:', error)
     throw error

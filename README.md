@@ -213,7 +213,6 @@ TWILIO_PHONE_NUMBER=+1234567890
 
 # Monitoring Configuration
 RETRY_COUNT=1
-MONITOR_BATCH_SIZE=10
 ```
 
 5. Start the development server:
@@ -539,8 +538,6 @@ For local development with live code reloading:
 ```env
 # Copy from .env.example and fill in your values
 NEXTAUTH_SECRET=your-secret-here
-ADMIN_USERNAME=admin
-ADMIN_PASSWORD=your-password
 
 EMAIL_HOST=smtp.gmail.com
 EMAIL_PORT=587
@@ -599,8 +596,6 @@ cp .env.example .env
 NEXT_PUBLIC_APP_URL=https://monitor.yourdomain.com
 NEXTAUTH_URL=https://monitor.yourdomain.com
 NEXTAUTH_SECRET=your-secret-here
-ADMIN_USERNAME=admin
-ADMIN_PASSWORD=your-secure-password
 # ... other credentials
 ```
 
@@ -693,8 +688,6 @@ vercel
 vercel env add MONGODB_URI
 vercel env add NEXTAUTH_SECRET
 vercel env add CRON_SECRET
-vercel env add ADMIN_USERNAME
-vercel env add ADMIN_PASSWORD
 # Add other env vars as needed (EMAIL_*, TWILIO_*)
 
 # Deploy to production
@@ -709,8 +702,6 @@ vercel --prod
    - `NEXTAUTH_URL` - Your Vercel domain (e.g., `https://your-app.vercel.app`)
    - `NEXTAUTH_SECRET` - Generate with `openssl rand -base64 32`
    - `CRON_SECRET` - Generate with `openssl rand -base64 32`
-   - `ADMIN_USERNAME` - Your admin username
-   - `ADMIN_PASSWORD` - Your admin password
    - Add email and Twilio variables as needed
 4. Click "Deploy"
 

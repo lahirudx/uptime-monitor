@@ -185,210 +185,223 @@ async function expandContactLists(
 }
 
 /**
- * Process monitors in batches to avoid overwhelming the system
+ * Run one full check + status update + alert fan-out for a single monitor.
+ * Called from runMonitorChecks via per-monitor setTimeout scheduling.
  */
-async function processBatch(
-  monitors: any[],
+async function checkSingleMonitor(
+  monitor: any,
   Monitor: any,
   MonitorCheck: any,
   sendEmailAlert: any,
-  sendTwilioCall: any,
-  orgId: string,
-  batchNumber: number
+  sendTwilioCall: any
 ) {
-  const results = await Promise.allSettled(
-    monitors.map(async (monitor) => {
-      try {
-        const now = new Date()
-        const lastCheck = monitor.lastCheck ? new Date(monitor.lastCheck) : new Date(0)
-        const timeSinceLastCheck = (now.getTime() - lastCheck.getTime()) / 1000 // in seconds
+  const orgId = monitor.organizationId?.toString() || 'unknown'
+  try {
+    const now = new Date()
+    const lastCheck = monitor.lastCheck ? new Date(monitor.lastCheck) : new Date(0)
+    const timeSinceLastCheck = (now.getTime() - lastCheck.getTime()) / 1000 // in seconds
 
-        // Only check if enough time has passed since last check
-        if (timeSinceLastCheck >= monitor.interval) {
-          console.log(`[Org:${orgId}][Batch:${batchNumber}] Checking monitor: ${monitor.name} (${monitor.url})`)
+    // Safety gate — should always pass given anchor-based scheduling, but
+    // protects against overlapping sweeps if the cron lock ever fails.
+    // SWEEP_GRACE_MS of tolerance so a check that fires slightly early (cron
+    // jitter) isn't dropped for being a few hundred ms under the interval.
+    if (timeSinceLastCheck >= monitor.interval - SWEEP_GRACE_MS / 1000) {
+      console.log(`[Org:${orgId}] Checking monitor: ${monitor.name} (${monitor.url})`)
 
-          const checkResult = await checkEndpointWithRetry(
-            monitor.url,
-            monitor.timeout * 1000
-          )
+      const checkResult = await checkEndpointWithRetry(
+        monitor.url,
+        monitor.timeout * 1000
+      )
 
-          // Log retry information
-          if (checkResult.attemptNumber && checkResult.attemptNumber > 1) {
-            console.log(
-              `[Org:${orgId}][Batch:${batchNumber}] Monitor ${monitor.name}: ${checkResult.success ? 'Succeeded' : 'Failed'} ` +
-              `after ${checkResult.attemptNumber} attempts`
-            )
-          }
+      if (checkResult.attemptNumber && checkResult.attemptNumber > 1) {
+        console.log(
+          `[Org:${orgId}] Monitor ${monitor.name}: ${checkResult.success ? 'Succeeded' : 'Failed'} ` +
+            `after ${checkResult.attemptNumber} attempts`
+        )
+      }
 
-          // Save check result
-          await MonitorCheck.create({
-            monitorId: monitor._id.toString(),
-            success: checkResult.success,
-            responseTime: checkResult.responseTime,
-            statusCode: checkResult.statusCode,
-            error: checkResult.error,
-            timestamp: checkResult.timestamp,
-            attemptNumber: checkResult.attemptNumber,
-          })
+      await MonitorCheck.create({
+        monitorId: monitor._id.toString(),
+        success: checkResult.success,
+        responseTime: checkResult.responseTime,
+        statusCode: checkResult.statusCode,
+        error: checkResult.error,
+        timestamp: checkResult.timestamp,
+        attemptNumber: checkResult.attemptNumber,
+      })
 
-          // Update monitor status
-          const previousStatus = monitor.status
-          const newStatus = checkResult.success ? 'up' : 'down'
+      const previousStatus = monitor.status
+      const newStatus = checkResult.success ? 'up' : 'down'
 
-          await Monitor.findByIdAndUpdate(monitor._id, {
-            status: newStatus,
-            lastCheck: now,
-          })
+      await Monitor.findByIdAndUpdate(monitor._id, {
+        status: newStatus,
+        lastCheck: now,
+      })
 
-          console.log(`[Org:${orgId}][Batch:${batchNumber}] Monitor ${monitor.name}: ${newStatus} (${checkResult.responseTime}ms)`)
+      console.log(`[Org:${orgId}] Monitor ${monitor.name}: ${newStatus} (${checkResult.responseTime}ms)`)
 
-          // Send alerts if status changed from up to down
-          if (previousStatus === 'up' && newStatus === 'down') {
-            // Atomic dedupe claim: only send if no alert has gone out for this
-            // monitor within ALERT_DEDUPE_MS. Atomicity here is what protects us
-            // even if the cron lock is bypassed or two pods race.
-            const dedupeBefore = new Date(Date.now() - ALERT_DEDUPE_MS)
-            const claimed = await Monitor.findOneAndUpdate(
-              {
-                _id: monitor._id,
-                $or: [
-                  { lastAlertSentAt: { $exists: false } },
-                  { lastAlertSentAt: null },
-                  { lastAlertSentAt: { $lt: dedupeBefore } },
-                ],
-              },
-              { $set: { lastAlertSentAt: new Date() } }
-            )
-            if (!claimed) {
-              console.log(`[Org:${orgId}][Batch:${batchNumber}] Alert deduped for ${monitor.name}: already sent within ${ALERT_DEDUPE_MS / 1000}s`)
-              return { success: true, monitorName: monitor.name, deduped: true }
-            }
+      // up -> down: atomic dedupe claim, then fan out alerts.
+      if (previousStatus === 'up' && newStatus === 'down') {
+        const dedupeBefore = new Date(Date.now() - ALERT_DEDUPE_MS)
+        const claimed = await Monitor.findOneAndUpdate(
+          {
+            _id: monitor._id,
+            $or: [
+              { lastAlertSentAt: { $exists: false } },
+              { lastAlertSentAt: null },
+              { lastAlertSentAt: { $lt: dedupeBefore } },
+            ],
+          },
+          { $set: { lastAlertSentAt: new Date() } }
+        )
+        if (!claimed) {
+          console.log(`[Org:${orgId}] Alert deduped for ${monitor.name}: already sent within ${ALERT_DEDUPE_MS / 1000}s`)
+          return { success: true, monitorName: monitor.name, deduped: true }
+        }
 
-            console.log(`[Org:${orgId}][Batch:${batchNumber}] Sending alerts for ${monitor.name}`)
+        console.log(`[Org:${orgId}] Sending alerts for ${monitor.name}`)
 
-            // Expand contact lists and merge with direct alerts
-            const expandedContacts = await expandContactLists(monitor.contactLists, monitor.alerts)
+        const expandedContacts = await expandContactLists(monitor.contactLists, monitor.alerts)
 
-            // Send email alerts
-            if (expandedContacts.emails.length > 0) {
-              for (const email of expandedContacts.emails) {
-                try {
-                  await sendEmailAlert(
-                    monitor.name,
-                    monitor.url,
-                    checkResult.error || 'Unknown error',
-                    email
-                  )
-                  console.log(`[Org:${orgId}][Batch:${batchNumber}] Alert email sent to ${email}`)
-                } catch (error) {
-                  console.error(`[Org:${orgId}][Batch:${batchNumber}] Failed to send email to ${email}:`, error)
-                }
-              }
-            }
-
-            // Send webhook alerts
-            if (expandedContacts.webhooks.length > 0) {
-              const { sendWebhookAlert } = await import('./notifications')
-              for (const webhookUrl of expandedContacts.webhooks) {
-                try {
-                  await sendWebhookAlert(
-                    webhookUrl,
-                    monitor.name,
-                    monitor.url,
-                    checkResult.error || 'Unknown error'
-                  )
-                  console.log(`[Org:${orgId}][Batch:${batchNumber}] Webhook alert sent to ${webhookUrl}`)
-                } catch (error) {
-                  console.error(`[Org:${orgId}][Batch:${batchNumber}] Failed to send webhook to ${webhookUrl}:`, error)
-                }
-              }
-            }
-
-            // Send Twilio phone call alerts
-            if (expandedContacts.phones.length > 0) {
-              for (const phoneNumber of expandedContacts.phones) {
-                try {
-                  await sendTwilioCall({
-                    to: phoneNumber,
-                    monitorName: monitor.name,
-                    url: monitor.url,
-                    status: 'down',
-                  })
-                  console.log(`[Org:${orgId}][Batch:${batchNumber}] Twilio call alert sent to ${phoneNumber}`)
-                } catch (error) {
-                  console.error(`[Org:${orgId}][Batch:${batchNumber}] Failed to send Twilio call to ${phoneNumber}:`, error)
-                }
-              }
-            }
-
-            // Send FCM push notifications (scoped to organization)
+        if (expandedContacts.emails.length > 0) {
+          for (const email of expandedContacts.emails) {
             try {
-              const { sendMonitorDownPush } = await import('./fcm')
-              await sendMonitorDownPush(
-                monitor._id.toString(),
-                monitor.name,
-                monitor.url,
-                checkResult.error || 'Unknown error',
-                monitor.organizationId?.toString()
-              )
-              console.log(`[Org:${orgId}][Batch:${batchNumber}] FCM push notification sent for ${monitor.name} going DOWN`)
+              await sendEmailAlert(monitor.name, monitor.url, checkResult.error || 'Unknown error', email)
+              console.log(`[Org:${orgId}] Alert email sent to ${email}`)
             } catch (error) {
-              console.error(`[Org:${orgId}][Batch:${batchNumber}] Failed to send FCM push notification:`, error)
-            }
-          }
-
-          // Send recovery alerts if status changed from down to up
-          if (previousStatus === 'down' && newStatus === 'up') {
-            // Clear the dedupe stamp so the next DOWN incident alerts immediately
-            await Monitor.findByIdAndUpdate(monitor._id, { $unset: { lastAlertSentAt: 1 } })
-
-            console.log(`[Org:${orgId}][Batch:${batchNumber}] Sending recovery notifications for ${monitor.name}`)
-
-            // Expand contact lists for recovery emails
-            const expandedContacts = await expandContactLists(monitor.contactLists, monitor.alerts)
-
-            // Send recovery emails
-            if (expandedContacts.emails.length > 0) {
-              const { sendRecoveryNotification } = await import('./notifications')
-              for (const email of expandedContacts.emails) {
-                try {
-                  await sendRecoveryNotification(monitor.name, monitor.url, email)
-                  console.log(`[Org:${orgId}][Batch:${batchNumber}] Recovery email sent to ${email}`)
-                } catch (error) {
-                  console.error(`[Org:${orgId}][Batch:${batchNumber}] Failed to send recovery email to ${email}:`, error)
-                }
-              }
-            }
-
-            // Send FCM recovery push notifications (scoped to organization)
-            try {
-              const { sendMonitorRecoveryPush } = await import('./fcm')
-              await sendMonitorRecoveryPush(
-                monitor._id.toString(),
-                monitor.name,
-                monitor.url,
-                monitor.organizationId?.toString()
-              )
-              console.log(`[Org:${orgId}][Batch:${batchNumber}] FCM recovery push notification sent for ${monitor.name} going UP`)
-            } catch (error) {
-              console.error(`[Org:${orgId}][Batch:${batchNumber}] Failed to send FCM recovery push notification:`, error)
+              console.error(`[Org:${orgId}] Failed to send email to ${email}:`, error)
             }
           }
         }
-        return { success: true, monitorName: monitor.name }
-      } catch (error) {
-        console.error(`[Org:${orgId}][Batch:${batchNumber}] Error checking monitor ${monitor.name}:`, error)
-        return { success: false, monitorName: monitor.name, error }
-      }
-    })
-  )
 
-  return results
+        if (expandedContacts.webhooks.length > 0) {
+          const { sendWebhookAlert } = await import('./notifications')
+          for (const webhookUrl of expandedContacts.webhooks) {
+            try {
+              await sendWebhookAlert(webhookUrl, monitor.name, monitor.url, checkResult.error || 'Unknown error')
+              console.log(`[Org:${orgId}] Webhook alert sent to ${webhookUrl}`)
+            } catch (error) {
+              console.error(`[Org:${orgId}] Failed to send webhook to ${webhookUrl}:`, error)
+            }
+          }
+        }
+
+        if (expandedContacts.phones.length > 0) {
+          for (const phoneNumber of expandedContacts.phones) {
+            try {
+              await sendTwilioCall({
+                to: phoneNumber,
+                monitorName: monitor.name,
+                url: monitor.url,
+                status: 'down',
+              })
+              console.log(`[Org:${orgId}] Twilio call alert sent to ${phoneNumber}`)
+            } catch (error) {
+              console.error(`[Org:${orgId}] Failed to send Twilio call to ${phoneNumber}:`, error)
+            }
+          }
+        }
+
+        try {
+          const { sendMonitorDownPush } = await import('./fcm')
+          await sendMonitorDownPush(
+            monitor._id.toString(),
+            monitor.name,
+            monitor.url,
+            checkResult.error || 'Unknown error',
+            monitor.organizationId?.toString()
+          )
+          console.log(`[Org:${orgId}] FCM push notification sent for ${monitor.name} going DOWN`)
+        } catch (error) {
+          console.error(`[Org:${orgId}] Failed to send FCM push notification:`, error)
+        }
+      }
+
+      // down -> up: clear dedupe stamp so the next incident alerts immediately, then fan out recovery.
+      if (previousStatus === 'down' && newStatus === 'up') {
+        await Monitor.findByIdAndUpdate(monitor._id, { $unset: { lastAlertSentAt: 1 } })
+
+        console.log(`[Org:${orgId}] Sending recovery notifications for ${monitor.name}`)
+
+        const expandedContacts = await expandContactLists(monitor.contactLists, monitor.alerts)
+
+        if (expandedContacts.emails.length > 0) {
+          const { sendRecoveryNotification } = await import('./notifications')
+          for (const email of expandedContacts.emails) {
+            try {
+              await sendRecoveryNotification(monitor.name, monitor.url, email)
+              console.log(`[Org:${orgId}] Recovery email sent to ${email}`)
+            } catch (error) {
+              console.error(`[Org:${orgId}] Failed to send recovery email to ${email}:`, error)
+            }
+          }
+        }
+
+        try {
+          const { sendMonitorRecoveryPush } = await import('./fcm')
+          await sendMonitorRecoveryPush(
+            monitor._id.toString(),
+            monitor.name,
+            monitor.url,
+            monitor.organizationId?.toString()
+          )
+          console.log(`[Org:${orgId}] FCM recovery push notification sent for ${monitor.name} going UP`)
+        } catch (error) {
+          console.error(`[Org:${orgId}] Failed to send FCM recovery push notification:`, error)
+        }
+      }
+    }
+    return { success: true, monitorName: monitor.name }
+  } catch (error) {
+    console.error(`[Org:${orgId}] Error checking monitor ${monitor.name}:`, error)
+    return { success: false, monitorName: monitor.name, error }
+  }
 }
 
 const CRON_LOCK_KEY = 'monitor-cron'
-const CRON_LOCK_TTL_MS = 2 * 60 * 1000 // 2 minutes — longer than the worst-case sweep
 const ALERT_DEDUPE_MS = 5 * 60 * 1000 // suppress repeat DOWN alerts for the same incident
+// Window in which checks are scheduled within one cron tick.
+//
+// CRITICAL: this MUST equal the cron cadence (the interval at which the
+// scheduler hits /api/cron/monitor). Each sweep only schedules checks falling
+// in [sweepStart, sweepStart + SWEEP_WINDOW_MS); the next sweep must pick up
+// exactly where this one stopped:
+//   cron every 1 min  -> SWEEP_WINDOW_MS=60000
+//   cron every 3 min  -> SWEEP_WINDOW_MS=180000
+//   cron every 5 min  -> SWEEP_WINDOW_MS=300000
+// If the window is SHORTER than the cadence, the tail of each interval is
+// never covered and those monitors silently stop being checked. If it's
+// LONGER, monitors get scheduled in overlapping windows (harmless — the
+// per-monitor lastCheck gate in checkSingleMonitor dedupes them).
+const SWEEP_WINDOW_MS = parseInt(process.env.SWEEP_WINDOW_MS || '60000', 10)
+// Tolerance for cron jitter. K8s CronJobs don't fire at exact second
+// boundaries, so fixed-width sweep windows anchored to the actual fire time
+// don't tile perfectly: a late tick leaves a small uncovered gap, and an
+// early tick makes a check fire slightly under `interval` after the last one.
+// GRACE both (a) extends each window so the gap is re-covered, and (b)
+// loosens the lastCheck gate so a near-on-time check isn't dropped for being
+// a few hundred ms early. Without it, monitors whose anchor second sits near
+// the window boundary can skip a cycle. 5s is comfortably above typical
+// CronJob jitter while staying negligible against a 60s interval.
+const SWEEP_GRACE_MS = parseInt(process.env.SWEEP_GRACE_MS || '5000', 10)
+// Worst-case time for a single check to finish once it fires. Derived from the
+// actual retry config and the schema's max per-monitor timeout, NOT a fixed
+// constant — a monitor with timeout=60 and RETRY_COUNT=1 runs ~125s, well past
+// the old hardcoded 90s, which would let the cron lock expire mid-sweep while a
+// trailing check is still running. Each failed attempt waits up to
+// RETRY_MAX_DELAY before the next, so worst case is:
+//   maxTimeout × (retries + 1) + retryMaxDelay × retries
+const MAX_MONITOR_TIMEOUT_MS = 60 * 1000 // schema cap on monitor.timeout (models/Monitor.ts)
+const RETRY_COUNT_FOR_BUDGET = parseInt(process.env.RETRY_COUNT || '1', 10)
+const RETRY_MAX_DELAY_FOR_BUDGET = parseInt(process.env.RETRY_MAX_DELAY || '5000', 10)
+const MAX_SINGLE_CHECK_MS =
+  MAX_MONITOR_TIMEOUT_MS * (RETRY_COUNT_FOR_BUDGET + 1) +
+  RETRY_MAX_DELAY_FOR_BUDGET * RETRY_COUNT_FOR_BUDGET
+// Lock is held for the whole sweep, so its TTL is derived from the window
+// rather than a fixed constant — otherwise raising SWEEP_WINDOW_MS (e.g. to
+// 3 min) without bumping the TTL would let the lock expire mid-sweep and a
+// second invocation start. window + grace + the longest trailing check.
+const CRON_LOCK_TTL_MS = SWEEP_WINDOW_MS + SWEEP_GRACE_MS + MAX_SINGLE_CHECK_MS
 
 /**
  * Try to acquire the cron lock. Returns true if acquired, false if another
@@ -453,55 +466,57 @@ export async function runMonitorChecks() {
       status: { $in: ['up', 'down'] },
     })
 
-    console.log(`Checking ${monitors.length} active monitors...`)
+    const sweepStart = Date.now()
+    // Extend the window by GRACE so a gap left by a late-firing previous tick
+    // is re-covered here. Any monitor this pulls forward from the next window
+    // is deduped by the (also grace-tolerant) lastCheck gate.
+    const sweepEnd = sweepStart + SWEEP_WINDOW_MS + SWEEP_GRACE_MS
+    console.log(
+      `Sweep over ${monitors.length} active monitors; window ${SWEEP_WINDOW_MS / 1000}s ` +
+        `(+${SWEEP_GRACE_MS / 1000}s grace; must equal cron cadence — set SWEEP_WINDOW_MS to match the CronJob schedule)`
+    )
 
-    const startTime = Date.now()
-    const MAX_EXECUTION_TIME = 55000 // 55 seconds safety margin
-    const BATCH_SIZE = parseInt(process.env.MONITOR_BATCH_SIZE || '10', 10)
+    // Schedule each due firing via setTimeout, anchored to the monitor's
+    // createdAt. A monitor created at 13:17:23 with interval=300 will fire
+    // at exactly 13:22:23, 13:27:23, etc. Monitors with interval < window
+    // can fire more than once per sweep (handled by the inner while loop).
+    const scheduled: Promise<void>[] = []
+    let scheduledCount = 0
 
-    // Group monitors by organization
-    const monitorsByOrg = new Map<string, any[]>()
     for (const monitor of monitors) {
-      const orgId = monitor.organizationId?.toString() || 'unknown'
-      if (!monitorsByOrg.has(orgId)) {
-        monitorsByOrg.set(orgId, [])
-      }
-      monitorsByOrg.get(orgId)!.push(monitor)
-    }
+      const createdMs = new Date(monitor.createdAt).getTime()
+      const intervalMs = monitor.interval * 1000
+      const elapsed = sweepStart - createdMs
+      let nextDueMs = createdMs + Math.ceil(elapsed / intervalMs) * intervalMs
 
-    console.log(`Monitors grouped into ${monitorsByOrg.size} organizations`)
-
-    // Create all batch promises upfront for parallel execution
-    const batchPromises: Promise<any>[] = []
-    let totalMonitors = 0
-
-    for (const [orgId, orgMonitors] of monitorsByOrg) {
-      console.log(`Organization ${orgId}: ${orgMonitors.length} monitors`)
-
-      // Create batches for this organization
-      for (let i = 0; i < orgMonitors.length; i += BATCH_SIZE) {
-        const batch = orgMonitors.slice(i, i + BATCH_SIZE)
-        const batchNumber = Math.floor(i / BATCH_SIZE) + 1
-        
-        console.log(`[Org:${orgId}][Batch:${batchNumber}] Queued ${batch.length} monitors`)
-
-        // Add batch promise to the array (don't await yet)
-        batchPromises.push(
-          processBatch(batch, Monitor, MonitorCheck, sendEmailAlert, sendTwilioCall, orgId, batchNumber)
+      while (nextDueMs < sweepEnd) {
+        const delay = Math.max(0, nextDueMs - sweepStart)
+        const m = monitor // close over a stable reference
+        scheduled.push(
+          new Promise<void>((resolve) => {
+            setTimeout(async () => {
+              try {
+                await checkSingleMonitor(m, Monitor, MonitorCheck, sendEmailAlert, sendTwilioCall)
+              } catch (e) {
+                console.error(`Scheduled check threw for ${m.name}:`, e)
+              }
+              resolve()
+            }, delay)
+          })
         )
-        
-        totalMonitors += batch.length
+        scheduledCount++
+        nextDueMs += intervalMs
       }
     }
 
-    console.log(`Starting parallel execution of ${batchPromises.length} batches across all organizations...`)
+    console.log(`Scheduled ${scheduledCount} monitor checks in this window`)
+    await Promise.allSettled(scheduled)
 
-    // Execute all batches in parallel
-    await Promise.allSettled(batchPromises)
-
-    const executionTime = Date.now() - startTime
-    console.log(`Monitor check cycle completed: ${totalMonitors} monitors processed in ${executionTime}ms (${batchPromises.length} batches)`)
-    return { success: true, monitorsChecked: totalMonitors, executionTime, batchesProcessed: batchPromises.length }
+    const executionTime = Date.now() - sweepStart
+    console.log(
+      `Monitor check cycle completed: ${scheduledCount} checks fired in ${executionTime}ms`
+    )
+    return { success: true, monitorsChecked: scheduledCount, executionTime }
   } catch (error) {
     console.error('Error running monitor checks:', error)
     throw error
