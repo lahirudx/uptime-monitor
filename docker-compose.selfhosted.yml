@@ -37,6 +37,9 @@ services:
       # POLL_INTERVAL_SECONDS (in ms). Default 60s window / 60s poll.
       - SWEEP_WINDOW_MS=${SWEEP_WINDOW_MS:-60000}
       - SWEEP_GRACE_MS=${SWEEP_GRACE_MS:-5000}
+      # Long-lived container — safe to run checks in the background after the
+      # cron request returns. Set false on serverless. Default off.
+      - CRON_BACKGROUND_CHECKS=${CRON_BACKGROUND_CHECKS:-false}
       # Retry Configuration
       - RETRY_COUNT=${RETRY_COUNT:-1}
       - RETRY_INITIAL_DELAY=${RETRY_INITIAL_DELAY:-1000}

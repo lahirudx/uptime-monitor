@@ -452,6 +452,19 @@ export async function runMonitorChecks() {
   const { sendEmailAlert } = await import('./notifications')
   const { sendTwilioCall } = await import('./twilio')
 
+  // Background mode: schedule the checks, release the lock, and return
+  // immediately — the per-monitor setTimeouts run in the pod's event loop
+  // after the HTTP response. This keeps the cron trigger's request fast
+  // (no curl timeout) and lets each tick run on schedule instead of the
+  // lock being held for the whole ~window+check duration (which would make
+  // a long sweep skip the next tick).
+  //
+  // ONLY safe on a long-lived server (K8s, Docker, `next start`). On
+  // serverless (Vercel, AWS Lambda) the function is frozen/killed once the
+  // response returns, so background timers wouldn't run — those deployments
+  // must leave this off (default) and use the awaited path below.
+  const backgroundMode = (process.env.CRON_BACKGROUND_CHECKS || 'false') === 'true'
+
   await connectDB()
 
   const acquired = await acquireCronLock()
@@ -460,6 +473,10 @@ export async function runMonitorChecks() {
     return { success: true, skipped: true, reason: 'lock-held' }
   }
 
+  // Build the schedule of due checks. Scheduling itself is fast (synchronous
+  // setTimeout registration); the awaiting/running differs by mode below.
+  let scheduled: Promise<void>[] = []
+  let scheduledCount = 0
   try {
     // Get all active monitors (not paused)
     const monitors = await Monitor.find({
@@ -480,9 +497,6 @@ export async function runMonitorChecks() {
     // createdAt. A monitor created at 13:17:23 with interval=300 will fire
     // at exactly 13:22:23, 13:27:23, etc. Monitors with interval < window
     // can fire more than once per sweep (handled by the inner while loop).
-    const scheduled: Promise<void>[] = []
-    let scheduledCount = 0
-
     for (const monitor of monitors) {
       const createdMs = new Date(monitor.createdAt).getTime()
       const intervalMs = monitor.interval * 1000
@@ -510,13 +524,35 @@ export async function runMonitorChecks() {
     }
 
     console.log(`Scheduled ${scheduledCount} monitor checks in this window`)
-    await Promise.allSettled(scheduled)
+  } catch (error) {
+    console.error('Error scheduling monitor checks:', error)
+    await releaseCronLock()
+    throw error
+  }
 
-    const executionTime = Date.now() - sweepStart
-    console.log(
-      `Monitor check cycle completed: ${scheduledCount} checks fired in ${executionTime}ms`
+  if (backgroundMode) {
+    // Release the lock now that scheduling is done — the checks run as
+    // independent timers. Holding it for the full check duration would make
+    // a long sweep skip the next cron tick. Cross-tick double-checks are
+    // prevented by the per-monitor lastCheck gate; truly-concurrent duplicate
+    // triggers are still blocked by the lock during this scheduling phase.
+    await releaseCronLock()
+    void Promise.allSettled(scheduled).then(() =>
+      console.log(`Background sweep settled: ${scheduledCount} checks completed`)
     )
-    return { success: true, monitorsChecked: scheduledCount, executionTime }
+    return { success: true, monitorsChecked: scheduledCount, background: true }
+  }
+
+  // Foreground (serverless-safe): keep the request alive until every check
+  // finishes, then release the lock. Required on Vercel/Lambda where work
+  // after the response would be frozen.
+  try {
+    const startedAt = Date.now()
+    await Promise.allSettled(scheduled)
+    console.log(
+      `Monitor check cycle completed: ${scheduledCount} checks fired in ${Date.now() - startedAt}ms`
+    )
+    return { success: true, monitorsChecked: scheduledCount }
   } catch (error) {
     console.error('Error running monitor checks:', error)
     throw error
