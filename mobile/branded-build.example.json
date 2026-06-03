@@ -1,0 +1,5 @@
+{
+  "_comment": "Copy this to your own file (e.g. mybrand.json, git-ignored) to ship a rebranded build. Pass it with: flutter build apk --dart-define-from-file=mybrand.json. See README 'Building a rebranded app'.",
+  "BRAND_NAME": "Your Brand",
+  "DEFAULT_SERVER_URL": "https://status.example.com"
+}

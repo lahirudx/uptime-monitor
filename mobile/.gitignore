@@ -59,3 +59,10 @@ upload-keystore.jks
 
 # FVM Version Cache
 .fvm/
+
+# Vendor-specific branded build config (keep out of OSS — see
+# branded-build.example.json). Copy the example to your own *.json and wrapper
+# to ship a rebranded build; the actual values stay private to the operator.
+koala.json
+scripts/flutter-koala.ps1
+scripts/flutter-koala.sh

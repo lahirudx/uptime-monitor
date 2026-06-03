@@ -36,6 +36,10 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        // Launcher / home-screen app name. Defaults to the OSS name; a rebranded
+        // build overrides it by setting the APP_NAME env var before building, e.g.
+        //   APP_NAME="Uptime Koala" flutter build apk
+        manifestPlaceholders["appName"] = System.getenv("APP_NAME") ?: "Uptime Monitor"
     }
 
     signingConfigs {

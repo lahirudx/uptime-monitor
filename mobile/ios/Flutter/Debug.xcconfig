@@ -1,2 +1,7 @@
 #include? "Pods/Target Support Files/Pods-Runner/Pods-Runner.debug.xcconfig"
 #include "Generated.xcconfig"
+
+// Launcher / home-screen app name. OSS default; a rebranded build overrides
+// APP_DISPLAY_NAME (e.g. to "Uptime Koala") via xcconfig or an xcodebuild
+// build-setting argument.
+APP_DISPLAY_NAME=Uptime Monitor

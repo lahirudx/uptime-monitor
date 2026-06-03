@@ -115,6 +115,38 @@ flutter build ios --release
 
 Then archive and upload via Xcode.
 
+### Building a rebranded app
+
+You can ship the app under your own name and default backend without forking —
+everything is build-time configurable, defaulting to the open-source "Uptime
+Monitor" values:
+
+| Surface | How it's set | Default |
+|---|---|---|
+| In-app name + tagline | `BRAND_NAME` dart-define (`lib/core/brand.dart`) | `Uptime Monitor` |
+| Default backend URL | `DEFAULT_SERVER_URL` dart-define (`lib/core/services/server_config_service.dart`) | (community host) |
+| Android launcher name | `APP_NAME` env var (`android/app/build.gradle.kts`) | `Uptime Monitor` |
+| iOS launcher name | `APP_DISPLAY_NAME` xcconfig var (`ios/Flutter/*.xcconfig`) | `Uptime Monitor` |
+
+The two dart-defines can be supplied from a JSON file. Copy the example and edit
+it (keep your real file out of git):
+
+```bash
+cp branded-build.example.json mybrand.json   # then edit BRAND_NAME / DEFAULT_SERVER_URL
+```
+
+```bash
+# Android — APP_NAME (env) sets the launcher label; the JSON sets the rest
+APP_NAME="Your Brand" flutter build apk --release --dart-define-from-file=mybrand.json
+
+# iOS — set APP_DISPLAY_NAME in ios/Flutter/Release.xcconfig (xcconfig can't read
+# an env var), then:
+flutter build ios --release --dart-define-from-file=mybrand.json
+```
+
+(Don't change `applicationId` / bundle identifier unless you intend a distinct
+app on the stores.)
+
 ## App Configuration
 
 ### Connecting to Your Backend

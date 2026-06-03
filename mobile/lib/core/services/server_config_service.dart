@@ -2,7 +2,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class ServerConfigService {
   static const String _serverUrlKey = 'server_url';
-  static const String _defaultServerUrl = 'https://uptimemonitor.screenapp.io';
+  // Default backend the app points at on first launch (users can override it
+  // in Settings, or at build time with
+  //   flutter build apk --dart-define=DEFAULT_SERVER_URL=https://your-host).
+  static const String _defaultServerUrl = String.fromEnvironment(
+    'DEFAULT_SERVER_URL',
+    defaultValue: 'https://uptimekoala.com',
+  );
 
   static ServerConfigService? _instance;
   static ServerConfigService get instance =>
